@@ -97,6 +97,8 @@ def train(M, FLAGS, saver=None, model_name=None):
                        src.test, train_writer, i + 1, print_list)
             save_value(M.fn_trg_test_acc, 'test/trg_test',
                        trg.test, train_writer, i + 1, print_list)
+            save_value(M.fn_trg_test_lp_acc, 'test/trg_test_lp',
+                       [src.test, trg.test], train_writer, i + 1, print_list, lp=True)
             save_value(M.fn_src_ema_acc, 'test/src_test_ema',
                        src.test, train_writer, i + 1, print_list)
             save_value(M.fn_trg_ema_acc, 'test/trg_test_ema',

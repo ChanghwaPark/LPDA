@@ -85,7 +85,7 @@ def save_model(saver, M, model_dir, global_step):
 
 def save_value(fn_val, tag, data,
                train_writer=None, global_step=None, print_list=None,
-               full=True):
+               full=True, lp=False):
     """Log fn_val evaluation to tf.summary.FileWriter
     fn_val       - (fn) Takes (x, y) as input and returns value
     tag          - (str) summary tag for FileWriter
@@ -95,38 +95,66 @@ def save_value(fn_val, tag, data,
     print_list   - (list) list of vals to print to stdout
     full         - (bool) use full dataset v. first 1000 samples
     """
-    acc, summary = compute_value(fn_val, tag, data, full)
+    acc, summary = compute_value(fn_val, tag, data, full, lp)
     train_writer.add_summary(summary, global_step)
     acc = round(acc, 3)
     print_list += [os.path.basename(tag), acc]
 
 
-def compute_value(fn_val, tag, data, full=True):
+def compute_value(fn_val, tag, data, full=True, lp=False):
     """Compute value w.r.t. data
     fn_val - (fn) Takes (x, y) as input and returns value
     tag    - (str) summary tag for FileWriter
     data   - (Data) data object with images/labels attributes
     full   - (bool) use full dataset v. first 1024 samples
+    lp     - (bool) fn_val is computing acc flag
     """
-    with tb.nputils.FixedSeed(0):
-        shuffle = np.random.permutation(len(data.images))
+    if not lp:
+        with tb.nputils.FixedSeed(0):
+            shuffle = np.random.permutation(len(data.images))
 
-    xs = data.images[shuffle]
-    ys = data.labels[shuffle] if data.labels is not None else None
+        xs = data.images[shuffle]
+        ys = data.labels[shuffle] if data.labels is not None else None
 
-    if not full:
-        xs = xs[:1024]
-        ys = ys[:1024] if ys is not None else None
+        if not full:
+            xs = xs[:1024]
+            ys = ys[:1024] if ys is not None else None
 
-    acc = 0.
-    n = len(xs)
-    bs = 128
+        acc = 0.
+        n = len(xs)
+        bs = 128
 
-    for i in range(0, n, bs):
-        # x = data.preprocess(xs[i:i + bs])
-        x = xs[i:i + bs]
-        y = ys[i:i + bs]
-        acc += fn_val(x, y) / n * len(x)
+        for i in range(0, n, bs):
+            # x = data.preprocess(xs[i:i + bs])
+            x = xs[i:i + bs]
+            y = ys[i:i + bs]
+            acc += fn_val(x, y) / n * len(x)
+    else:
+        src_data, trg_data = data
+
+        with tb.nputils.FixedSeed(0):
+            shuffle = np.random.permutation(len(src_data.images))
+
+        xs = src_data.images[shuffle]
+        ys = src_data.labels[shuffle] if src_data.labels is not None else None
+
+        with tb.nputils.FixedSeed(0):
+            shuffle = np.random.permutation(len(trg_data.images))
+
+        xt = trg_data.images[shuffle]
+        yt = trg_data.labels[shuffle] if trg_data.labels is not None else None
+
+        acc = 0.
+        n = min(len(xs), len(xt))
+        bs = 128
+
+        for i in range(0, n - bs, bs):
+            # x = data.preprocess(xs[i:i + bs])
+            src_x = xs[i:i + bs]
+            src_y = ys[i:i + bs]
+            trg_x = xt[i:i + bs]
+            trg_y = yt[i:i + bs]
+            acc += fn_val(src_x, trg_x, src_y, trg_y) / n * len(src_x)
 
     summary = tf.Summary.Value(tag=tag, simple_value=acc)
     summary = tf.Summary(value=[summary])

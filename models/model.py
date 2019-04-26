@@ -38,7 +38,8 @@ def lpda(FLAGS):
         trg_y=placeholder((None, nc)),
         src_test_x=placeholder((None, src_sz, src_sz, src_ch)),
         trg_test_x=placeholder((None, trg_sz, trg_sz, trg_ch)),
-        test_y=placeholder((None, nc)),
+        src_test_y=placeholder((None, nc)),
+        trg_test_y=placeholder((None, nc)),
         adpt=placeholder(None)
     ))
 
@@ -56,6 +57,10 @@ def lpda(FLAGS):
     # The features and the predictions of the source and the target images
     src_e = nn.classifier(src_x, phase=True, enc_phase=True, trim=FLAGS.trim)
     trg_e = nn.classifier(trg_x, phase=True, enc_phase=True, trim=FLAGS.trim, internal_update=True)
+    # src_test_e = tf.stop_gradient(nn.classifier(src_test_x, phase=True, enc_phase=True, trim=FLAGS.trim))
+    # trg_test_e = tf.stop_gradient(nn.classifier(trg_test_x, phase=True, enc_phase=True, trim=FLAGS.trim))
+    src_test_e = nn.classifier(src_test_x, phase=False, enc_phase=True, trim=FLAGS.trim)
+    trg_test_e = nn.classifier(trg_test_x, phase=False, enc_phase=True, trim=FLAGS.trim)
 
     src_p = nn.classifier(src_e, phase=True, enc_phase=False, trim=FLAGS.trim)
     trg_p = nn.classifier(trg_e, phase=True, enc_phase=False, trim=FLAGS.trim, internal_update=True)
@@ -85,6 +90,8 @@ def lpda(FLAGS):
         with tf.variable_scope('class', reuse=tf.AUTO_REUSE):
             sigma = tf.get_variable('sigma', shape=[flen], initializer=tf.constant_initializer(1.))
         trg_yhat, src_yhat = label_propagate(src_e, trg_e, T.src_y, FLAGS.bs, sigma, FLAGS.lpc, FLAGS.lp_iter)
+        trg_test_yhat, _ = label_propagate(src_test_e, trg_test_e, T.src_test_y, FLAGS.bs, sigma, FLAGS.lpc,
+                                           FLAGS.lp_iter)
         loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
     else:
         loss_lp = constant(0)
@@ -114,14 +121,16 @@ def lpda(FLAGS):
     # Accuracies
     src_acc = accuracy(T.src_y, src_p)
     trg_acc = accuracy(T.trg_y, trg_p)
-    src_test_acc = accuracy(T.test_y, src_test_p)
-    trg_test_acc = accuracy(T.test_y, trg_test_p)
-    fn_src_test_acc = tb.function(T.sess, [T.src_test_x, T.test_y], src_test_acc)
-    fn_trg_test_acc = tb.function(T.sess, [T.trg_test_x, T.test_y], trg_test_acc)
-    src_ema_acc = accuracy(T.test_y, src_ema_p)
-    trg_ema_acc = accuracy(T.test_y, trg_ema_p)
-    fn_src_ema_acc = tb.function(T.sess, [T.src_test_x, T.test_y], src_ema_acc)
-    fn_trg_ema_acc = tb.function(T.sess, [T.trg_test_x, T.test_y], trg_ema_acc)
+    src_test_acc = accuracy(T.src_test_y, src_test_p)
+    trg_test_acc = accuracy(T.trg_test_y, trg_test_p)
+    trg_test_lp_acc = accuracy(T.trg_test_y, trg_test_yhat)
+    fn_src_test_acc = tb.function(T.sess, [T.src_test_x, T.src_test_y], src_test_acc)
+    fn_trg_test_acc = tb.function(T.sess, [T.trg_test_x, T.trg_test_y], trg_test_acc)
+    fn_trg_test_lp_acc = tb.function(T.sess, [T.src_test_x, T.trg_test_x, T.src_test_y, T.trg_test_y], trg_test_lp_acc)
+    src_ema_acc = accuracy(T.src_test_y, src_ema_p)
+    trg_ema_acc = accuracy(T.trg_test_y, trg_ema_p)
+    fn_src_ema_acc = tb.function(T.sess, [T.src_test_x, T.src_test_y], src_ema_acc)
+    fn_trg_ema_acc = tb.function(T.sess, [T.trg_test_x, T.trg_test_y], trg_ema_acc)
 
     # Optimizer
     if FLAGS.dw > 0:
@@ -218,6 +227,7 @@ def lpda(FLAGS):
     T.ops_main = [summary_main, train_main]
     T.fn_src_test_acc = fn_src_test_acc
     T.fn_trg_test_acc = fn_trg_test_acc
+    T.fn_trg_test_lp_acc = fn_trg_test_lp_acc
     T.fn_src_ema_acc = fn_src_ema_acc
     T.fn_trg_ema_acc = fn_trg_ema_acc
 
