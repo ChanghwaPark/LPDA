@@ -7,12 +7,34 @@ https://github.com/RuiShu/dirt-t/codebase/utils.py
 import logging
 import os
 import shutil
-
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorbayes as tb
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
+
+
+def adaptation_factor(x, ramp_gamma=10):
+    den = 1.0 + math.exp(-ramp_gamma * x)
+    lamb = 2.0 / den - 1.0
+    return min(lamb, 1.0)
+
+
+def get_decay_var_op(name):
+    var = tf.Variable(0, trainable=False, name=name)
+    op = tf.assign_add(var, 1, name=name)
+    return var, op
+
+
+def get_grad_weight(y, flen):
+    # if tf.is_nan(y):
+    #     print('nan detected in target y hat')
+    # class_num = y.shape[1]
+    ent = tf.reduce_sum(-y * tf.log(y + 1e-8), 1)
+    weight = ent * tf.exp(-ent + 1)
+    weight = tf.tile(tf.expand_dims(weight, 1), [1, flen])
+    return weight
 
 
 def preprocessing(inputs, exp_sz, exp_ch):

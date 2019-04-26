@@ -10,6 +10,14 @@ class small_lenet(object):
         self.FLAGS = FLAGS
         _, _, _, _, _, _, self.nc = get_attr(FLAGS.src, FLAGS.trg)
 
+    def get_flen(self):
+        if self.FLAGS.trim == 0:
+            return self.nc
+        elif self.FLAGS.trim == 1 or self.FLAGS.trim == 2:
+            return 100
+        else:
+            raise ValueError('Trim for the lenet network should be 0 or 1')
+
     def classifier(self, x, phase, enc_phase=True, trim=0, scope='class', reuse=tf.AUTO_REUSE, internal_update=False,
                    getter=None):
         with tf.variable_scope(scope, reuse=reuse, custom_getter=getter):

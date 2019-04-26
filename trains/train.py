@@ -10,7 +10,7 @@ import tensorbayes as tb
 import tensorflow as tf
 
 from data.dataset import get_data, get_info
-from utils import delete_existing, save_value, save_model, print_image, normalize
+from utils import delete_existing, save_value, save_model, print_image, normalize, adaptation_factor
 
 
 def update_dict(M, feed_dict, FLAGS, src=None, trg=None):
@@ -35,7 +35,12 @@ def train(M, FLAGS, saver=None, model_name=None):
     itersave = 20000
     n_epoch = FLAGS.epoch
     epoch = 0
-    feed_dict = {}
+
+    if FLAGS.adpt:
+        adpt = adaptation_factor(0, FLAGS.adpt_val)
+    else:
+        adpt = 1.
+    feed_dict = {M.adpt: adpt}
 
     # Create a log directory and FileWriter
     log_dir = os.path.join(FLAGS.logdir, model_name)
@@ -99,6 +104,11 @@ def train(M, FLAGS, saver=None, model_name=None):
 
             print_list += ['epoch', epoch]
             print(print_list)
+            if FLAGS.adpt:
+                adpt = adaptation_factor(i/n_epoch, FLAGS.adpt_val)
+            else:
+                adpt = 1.
+            feed_dict.update({M.adpt: adpt})
 
         if saver and (i + 1) % itersave == 0:
             save_model(saver, M, model_dir, i + 1)

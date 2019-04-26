@@ -7,7 +7,6 @@ import tensorflow as tf
 
 from models.model import lpda
 from trains.train import train
-from data.dataset import get_attr
 
 # Define flag arguments
 flags = tf.app.flags
@@ -20,7 +19,7 @@ flags.DEFINE_integer('zc', 0, 'Zero centering of data flag')
 flags.DEFINE_integer('val', 0, 'Include validation set or not flag')
 
 ## Architecture
-flags.DEFINE_string('nn', 'small_lenet', 'Network architecture')
+flags.DEFINE_string('nn', 'lenet', 'Network architecture')
 flags.DEFINE_string('logdir', 'results/log', 'Log directory')
 flags.DEFINE_string('ckptdir', 'results/checkpoints', 'Checkpoint directory')
 flags.DEFINE_string('datadir', '/home/omega/datasets', 'Directory for datasets')
@@ -29,8 +28,15 @@ flags.DEFINE_string('datadir', '/home/omega/datasets', 'Directory for datasets')
 flags.DEFINE_float('lr', 1e-3, 'Learning rate')
 flags.DEFINE_integer('epoch', 80, 'Number of epochs')
 flags.DEFINE_integer('inorm', 0, 'Feature extractor instance normalization flag')
-flags.DEFINE_integer('trim', 3, 'Which layer to extract feature')
+flags.DEFINE_integer('trim', 0, 'Which layer to extract feature')
 flags.DEFINE_float('dw', 1e-2, 'Adversarial domain adaptation hyper-parameter')
+flags.DEFINE_float('lw', 1e-2, 'Label propagation hyper-parameter')
+flags.DEFINE_float('wd', 5e-4, 'Weight decay hyper-parameter')
+flags.DEFINE_integer('cgw', 1, 'Control gradient weight flag; 0: do not control, 1: do control')
+flags.DEFINE_integer('lpc', 1, 'Label propagation closed form flag; 0: iteration, 1: closed form')
+flags.DEFINE_integer('lp_iter', 10, 'The number of iterations for label propagation when lpc=0')
+flags.DEFINE_integer('adpt', 1, 'Hyper-parameter scheduling for loss_lp and loss_dann flag; 0: no scheduling, 1: yes')
+flags.DEFINE_integer('adpt_val', 10, 'Hyper-parameter scheduling speed')
 
 ## Others
 flags.DEFINE_string('gpu', '0', 'GPU number')
@@ -48,6 +54,8 @@ def main(_):
     gpu_config = tf.ConfigProto()
     gpu_config.gpu_options.allow_growth = True
 
+    if FLAGS.adpt == 0: FLAGS.adpt_val = 0
+
     # Define model name
     setup_list = [
         FLAGS.src,
@@ -55,7 +63,11 @@ def main(_):
         FLAGS.nn,
         f"in_{FLAGS.inorm}",
         f"trim_{FLAGS.trim}",
-        f"dw_{FLAGS.dw}"
+        f"dw_{FLAGS.dw}",
+        f"lw_{FLAGS.lw}",
+        f"cgw_{FLAGS.cgw}",
+        f"lpc_{FLAGS.lpc}",
+        f"adpt_{FLAGS.adpt}_{FLAGS.adpt_val}"
     ]
     model_name = '_'.join(setup_list)
     print(f"Model name: {model_name}")

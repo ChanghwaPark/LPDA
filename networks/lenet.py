@@ -5,7 +5,7 @@ from utils import relu
 from data.dataset import get_attr
 
 
-class large_lenet(object):
+class lenet(object):
     def __init__(self, FLAGS):
         self.FLAGS = FLAGS
         _, _, _, _, _, _, self.nc = get_attr(FLAGS.src, FLAGS.trg)
@@ -14,9 +14,7 @@ class large_lenet(object):
         if self.FLAGS.trim == 0:
             return self.nc
         elif self.FLAGS.trim == 1:
-            return 2048
-        elif self.FLAGS.trim == 2:
-            return 3072
+            return 512
         else:
             raise ValueError('Trim for the lenet network should be 0 or 1')
 
@@ -29,13 +27,11 @@ class large_lenet(object):
                 preprocess = instance_norm if self.FLAGS.inorm else tf.identity
                 layout = [
                     (preprocess, (), {}),
-                    (conv2d, (64, 5, 1), {}),
-                    (max_pool, (3, 2), {}),
-                    (conv2d, (64, 5, 1), {}),
-                    (max_pool, (3, 2), {}),
-                    (conv2d, (128, 5, 1), {}),
-                    (dense, (3072,), {}),
-                    (dense, (2048,), {}),
+                    (conv2d, (20, 5, 1), {}),
+                    (max_pool, (2, 2), {}),
+                    (conv2d, (50, 5, 1), {}),
+                    (max_pool, (2, 2), {}),
+                    (dense, (512,), {}),
                     (dense, (self.nc,), dict(activation=None))
                 ]
 
@@ -56,8 +52,7 @@ class large_lenet(object):
     def feature_discriminator(self, x, phase, C=1, reuse=tf.AUTO_REUSE):
         with tf.variable_scope('disc/feat', reuse=reuse):
             with arg_scope([dense], activation=relu, bn=False):
-                x = dense(x, 1024)
-                x = dense(x, 1024)
+                x = dense(x, 100)
                 x = dense(x, C, activation=None)
 
         return x
