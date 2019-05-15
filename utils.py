@@ -97,8 +97,10 @@ def save_value(fn_val, tag, data,
     """
     acc, summary = compute_value(fn_val, tag, data, full, lp)
     train_writer.add_summary(summary, global_step)
+    output = acc
     acc = round(acc, 3)
     print_list += [os.path.basename(tag), acc]
+    return output
 
 
 def compute_value(fn_val, tag, data, full=True, lp=False):

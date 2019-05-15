@@ -17,6 +17,12 @@ class small(object):
         self.FLAGS = FLAGS
         _, _, _, _, _, _, self.nc = get_attr(FLAGS.src, FLAGS.trg)
 
+    def get_flen(self):
+        if self.FLAGS.trim == 0:
+            return self.nc
+        else:
+            raise ValueError('Trim for the small network should be 0')
+
     def classifier(self, x, phase, enc_phase=True, trim=0, scope='class', reuse=tf.AUTO_REUSE, internal_update=False,
                    getter=None):
         with tf.variable_scope(scope, reuse=reuse, custom_getter=getter):

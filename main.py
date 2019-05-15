@@ -12,11 +12,13 @@ from trains.train import train
 flags = tf.app.flags
 
 ## Data
-flags.DEFINE_string('src', 'svhn', 'Source domain name')
-flags.DEFINE_string('trg', 'mnist', 'Target domain name')
+flags.DEFINE_string('src', 'syndigits', 'Source domain name')
+flags.DEFINE_string('trg', 'svhn', 'Target domain name')
 flags.DEFINE_integer('bs', 128, 'Batch size')
 flags.DEFINE_integer('zc', 0, 'Zero centering of data flag')
 flags.DEFINE_integer('val', 0, 'Include validation set or not flag')
+flags.DEFINE_boolean('src_inv', False, 'Randomly invert source images flag')
+flags.DEFINE_boolean('trg_inv', False, 'Randomly invert target images flag')
 
 ## Architecture
 flags.DEFINE_string('nn', 'lenet', 'Network architecture')
@@ -39,12 +41,15 @@ flags.DEFINE_integer('adpt', 1, 'Hyper-parameter scheduling for loss_lp and loss
 flags.DEFINE_integer('adpt_val', 10, 'Hyper-parameter scheduling speed')
 
 ## Others
-flags.DEFINE_string('gpu', '0', 'GPU number')
+flags.DEFINE_string('gpu', '1', 'GPU number')
 
 FLAGS = flags.FLAGS
 
 
 def main(_):
+    if FLAGS.adpt == 0: FLAGS.adpt_val = 0
+    if FLAGS.src == 'mnist' and FLAGS.trg == 'mnistm': FLAGS.src_inv = True
+
     # Print FLAGS values
     pprint(FLAGS.flag_values_dict())
 
@@ -53,8 +58,6 @@ def main(_):
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
     gpu_config = tf.ConfigProto()
     gpu_config.gpu_options.allow_growth = True
-
-    if FLAGS.adpt == 0: FLAGS.adpt_val = 0
 
     # Define model name
     setup_list = [

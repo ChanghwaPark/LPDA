@@ -12,7 +12,14 @@ class Data(object):
         x = x / x.std(axis=(1, 2, 3), keepdims=True)
         return x
 
-    def next_batch(self, bs, shuffle=True, normalize=False):
+    def invert_randomly(self, x):
+        randu = np.random.uniform(size=(len(x)), low=0., high=1.)
+        randu = (np.less(randu, 0.5)).astype(np.float32)
+        randu = np.expand_dims(np.expand_dims(np.expand_dims(randu, 1), 1), 1)
+        x = np.abs(x - randu)
+        return x
+
+    def next_batch(self, bs, shuffle=True, normalize=False, invert_randomly=False):
         if shuffle:
             idx = np.random.choice(len(self.images), bs, replace=False)
         else:
@@ -23,6 +30,8 @@ class Data(object):
         x = self.images[idx]
         if normalize:
             x = self.normalize_sample(x)
+        if invert_randomly:
+            x = self.invert_randomly(x)
         y = self.labels[idx]
         return x, y
 

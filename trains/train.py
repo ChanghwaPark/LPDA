@@ -15,10 +15,10 @@ from utils import delete_existing, save_value, save_model, print_image, normaliz
 
 def update_dict(M, feed_dict, FLAGS, src=None, trg=None):
     if src:
-        src_x, src_y = src.train.next_batch(FLAGS.bs)
+        src_x, src_y = src.train.next_batch(FLAGS.bs, invert_randomly=FLAGS.src_inv)
         feed_dict.update({M.src_x: src_x, M.src_y: src_y})
     if trg:
-        trg_x, trg_y = trg.train.next_batch(FLAGS.bs)
+        trg_x, trg_y = trg.train.next_batch(FLAGS.bs, invert_randomly=FLAGS.trg_inv)
         feed_dict.update({M.trg_x: trg_x, M.trg_y: trg_y})
 
 
@@ -35,6 +35,8 @@ def train(M, FLAGS, saver=None, model_name=None):
     itersave = 20000
     n_epoch = FLAGS.epoch
     epoch = 0
+    max_trg_train_ema_1k = 0.0
+    max_trg_test_ema = 0.0
 
     if FLAGS.adpt:
         adpt = adaptation_factor(0, FLAGS.adpt_val)
@@ -91,8 +93,8 @@ def train(M, FLAGS, saver=None, model_name=None):
                 else:
                     print_list[j] = round(item, 5)
 
-            save_value(M.fn_trg_ema_acc, 'test/trg_train_ema_1k',
-                       trg.train, train_writer, i + 1, print_list, full=False)
+            trg_train_ema_1k = save_value(M.fn_trg_ema_acc, 'test/trg_train_ema_1k',
+                                          trg.train, train_writer, i + 1, print_list, full=False)
             save_value(M.fn_src_test_acc, 'test/src_test',
                        src.test, train_writer, i + 1, print_list)
             save_value(M.fn_trg_test_acc, 'test/trg_test',
@@ -101,13 +103,18 @@ def train(M, FLAGS, saver=None, model_name=None):
                        [src.test, trg.test], train_writer, i + 1, print_list, lp=True)
             save_value(M.fn_src_ema_acc, 'test/src_test_ema',
                        src.test, train_writer, i + 1, print_list)
-            save_value(M.fn_trg_ema_acc, 'test/trg_test_ema',
-                       trg.test, train_writer, i + 1, print_list)
+            trg_test_ema = save_value(M.fn_trg_ema_acc, 'test/trg_test_ema',
+                                      trg.test, train_writer, i + 1, print_list)
 
             print_list += ['epoch', epoch]
             print(print_list)
+
+            if max_trg_train_ema_1k < trg_train_ema_1k:
+                max_trg_train_ema_1k = trg_train_ema_1k
+                max_trg_test_ema = trg_test_ema
+
             if FLAGS.adpt:
-                adpt = adaptation_factor(i/n_epoch, FLAGS.adpt_val)
+                adpt = adaptation_factor(epoch / n_epoch, FLAGS.adpt_val)
             else:
                 adpt = 1.
             feed_dict.update({M.adpt: adpt})
@@ -119,4 +126,5 @@ def train(M, FLAGS, saver=None, model_name=None):
     if saver:
         save_model(saver, M, model_dir, i + 1)
 
+    print(f"Max_trg_train_ema_1k: {max_trg_train_ema_1k} and max_trg_test_ema: {max_trg_test_ema}")
     print("============================LPDA training ended.============================")
