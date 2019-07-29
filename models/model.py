@@ -24,7 +24,8 @@ def lpda(FLAGS):
 
     print("============================LPDA model initialization started.============================")
 
-    nn_path = importlib.import_module(".{}".format(FLAGS.nn), package='networks')
+    # nn_path = importlib.import_module(".{}".format(FLAGS.nn), package='networks')
+    nn_path = importlib.import_module("networks.{}".format(FLAGS.nn))
     nn_class = getattr(nn_path, FLAGS.nn)
     nn = nn_class(FLAGS)
     src_sz, trg_sz, exp_sz, src_ch, trg_ch, exp_ch, nc = get_attr(FLAGS.src, FLAGS.trg)

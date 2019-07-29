@@ -8,6 +8,12 @@ import os
 import numpy as np
 import tensorbayes as tb
 import tensorflow as tf
+from statistics import mean
+from collections import deque
+from pytz import timezone
+import datetime
+from termcolor import colored
+import time
 
 from data.dataset import get_data, get_info
 from utils import delete_existing, save_value, save_model, print_image, normalize, adaptation_factor
@@ -67,6 +73,10 @@ def train(M, FLAGS, saver=None, model_name=None):
     print(f"Checkpoint directory: {model_dir}")
 
     print("============================LPDA training started.============================")
+    start_time = datetime.datetime.now(timezone('Asia/Seoul')).strftime('%Y-%m-%d %I:%M:%S %p')
+    print(colored(start_time, "blue"))
+    epoch_time = deque(maxlen=5)
+    temp_time = time.time()
 
     for i in range(n_epoch * iterep):
         # Train the discriminator
@@ -119,6 +129,13 @@ def train(M, FLAGS, saver=None, model_name=None):
                 adpt = 1.
             feed_dict.update({M.adpt: adpt})
 
+            epoch_time.appendleft(time.time() - temp_time)
+            temp_time = time.time()
+            needed_time = mean(epoch_time) * (n_epoch - epoch)
+            eta = datetime.datetime.now(timezone('Asia/Seoul')) + datetime.timedelta(seconds=needed_time)
+            print(f"Needed time: {str(datetime.timedelta(seconds=round(needed_time)))}, "
+                  f"ETA: {eta.strftime('%Y-%m-%d %I:%M:%S %p')}, Max_trg_test_ema: "
+                  + colored(round(max_trg_test_ema, 5), "red"))
         if saver and (i + 1) % itersave == 0:
             save_model(saver, M, model_dir, i + 1)
 
@@ -128,3 +145,5 @@ def train(M, FLAGS, saver=None, model_name=None):
 
     print(f"Max_trg_train_ema_1k: {max_trg_train_ema_1k} and max_trg_test_ema: {max_trg_test_ema}")
     print("============================LPDA training ended.============================")
+    end_time = datetime.datetime.now(timezone('Asia/Seoul')).strftime('%Y-%m-%d %I:%M:%S %p')
+    print(colored(end_time, "blue"))

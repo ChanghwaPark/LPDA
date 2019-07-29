@@ -12,8 +12,8 @@ from trains.train import train
 flags = tf.app.flags
 
 ## Data
-flags.DEFINE_string('src', 'syndigits', 'Source domain name')
-flags.DEFINE_string('trg', 'svhn', 'Target domain name')
+flags.DEFINE_string('src', 'cifar', 'Source domain name')
+flags.DEFINE_string('trg', 'stl', 'Target domain name')
 flags.DEFINE_integer('bs', 128, 'Batch size')
 flags.DEFINE_integer('zc', 0, 'Zero centering of data flag')
 flags.DEFINE_integer('val', 0, 'Include validation set or not flag')
@@ -21,7 +21,7 @@ flags.DEFINE_boolean('src_inv', False, 'Randomly invert source images flag')
 flags.DEFINE_boolean('trg_inv', False, 'Randomly invert target images flag')
 
 ## Architecture
-flags.DEFINE_string('nn', 'lenet', 'Network architecture')
+flags.DEFINE_string('nn', 'large', 'Network architecture')
 flags.DEFINE_string('logdir', 'results/log', 'Log directory')
 flags.DEFINE_string('ckptdir', 'results/checkpoints', 'Checkpoint directory')
 flags.DEFINE_string('datadir', '/home/omega/datasets', 'Directory for datasets')
@@ -31,17 +31,17 @@ flags.DEFINE_float('lr', 1e-3, 'Learning rate')
 flags.DEFINE_integer('epoch', 80, 'Number of epochs')
 flags.DEFINE_integer('inorm', 0, 'Feature extractor instance normalization flag')
 flags.DEFINE_integer('trim', 0, 'Which layer to extract feature')
-flags.DEFINE_float('dw', 1e-2, 'Adversarial domain adaptation hyper-parameter')
-flags.DEFINE_float('lw', 1e-2, 'Label propagation hyper-parameter')
+flags.DEFINE_float('dw', 1e-1, 'Adversarial domain adaptation hyper-parameter')
+flags.DEFINE_float('lw', 1e-1, 'Label propagation hyper-parameter')
 flags.DEFINE_float('wd', 5e-4, 'Weight decay hyper-parameter')
 flags.DEFINE_integer('cgw', 1, 'Control gradient weight flag; 0: do not control, 1: do control')
-flags.DEFINE_integer('lpc', 1, 'Label propagation closed form flag; 0: iteration, 1: closed form')
+flags.DEFINE_integer('lpc', 0, 'Label propagation closed form flag; 0: iteration, 1: closed form')
 flags.DEFINE_integer('lp_iter', 10, 'The number of iterations for label propagation when lpc=0')
 flags.DEFINE_integer('adpt', 1, 'Hyper-parameter scheduling for loss_lp and loss_dann flag; 0: no scheduling, 1: yes')
 flags.DEFINE_integer('adpt_val', 10, 'Hyper-parameter scheduling speed')
 
 ## Others
-flags.DEFINE_string('gpu', '1', 'GPU number')
+flags.DEFINE_string('gpu', '0', 'GPU number')
 
 FLAGS = flags.FLAGS
 
