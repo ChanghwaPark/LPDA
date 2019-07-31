@@ -105,10 +105,25 @@ if not os.path.exists("input_files/"):
     os.makedirs("input_files/")
 
 for i, label in enumerate(["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]):
-    filepath1 = "./Dataset/input_*" + str(label) + "*.csv"
-    filepath2 = "./Dataset/annotation_*" + str(label) + "*.csv"
-    outputfilename1 = "./input_files/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
-    outputfilename2 = "./input_files/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    filepath1 = "./Dataset/roomA/input_*" + str(label) + "*.csv"
+    filepath2 = "./Dataset/roomA/annotation_*" + str(label) + "*.csv"
+    outputfilename1 = "./input_files/roomA/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    outputfilename2 = "./input_files/roomA/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+
+    x, y = dataimport(filepath1, filepath2)
+    with open(outputfilename1, "w") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerows(x)
+    with open(outputfilename2, "w") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerows(y)
+    print(label + "finish!")
+
+for i, label in enumerate(["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]):
+    filepath1 = "./Dataset/roomB/input_*" + str(label) + "*.csv"
+    filepath2 = "./Dataset/roomB/annotation_*" + str(label) + "*.csv"
+    outputfilename1 = "./input_files/roomB/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    outputfilename2 = "./input_files/roomB/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
 
     x, y = dataimport(filepath1, filepath2)
     with open(outputfilename1, "w") as f:
