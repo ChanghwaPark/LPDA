@@ -11,6 +11,15 @@ def lp_loss(y, yhat, scope=None):
     return loss
 
 
+@add_arg_scope
+def lgan_loss(real_x, fake_x, classifier, scope=None):
+    with tf.name_scope(scope, 'lgan_loss'):
+        real_p = classifier(real_x, phase=True)
+        fake_p = classifier(fake_x, phase=True)
+        loss = tf.reduce_mean(softmax_xent_two(labels=tf.stop_gradient(real_p), logits=fake_p))
+    return loss
+
+
 def metric_mat(src_e=None, trg_e=None, bs=0, sigma=0):
     w_ss = w_st = w_ts = w_tt = None
     sigma_tile = tf.tile(tf.expand_dims(tf.expand_dims(sigma, 1), 2), [1, bs, bs])

@@ -5,14 +5,17 @@ https://github.com/RuiShu/dirt-t/codebase/utils.py
 """
 
 import logging
+import math
 import os
 import shutil
-import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorbayes as tb
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
+
+from data.dataset import get_attr
 
 
 def adaptation_factor(x, ramp_gamma=10):
@@ -27,12 +30,13 @@ def get_decay_var_op(name):
     return var, op
 
 
-def get_grad_weight(y, flen):
+def get_grad_weight(y, flen, grad_val):
     # if tf.is_nan(y):
     #     print('nan detected in target y hat')
     # class_num = y.shape[1]
     ent = tf.reduce_sum(-y * tf.log(y + 1e-8), 1)
-    weight = ent * tf.exp(-ent + 1)
+    # weight = ent * tf.exp(-ent + 1)
+    weight = grad_val * ent * tf.exp(-grad_val * ent + 1)
     weight = tf.tile(tf.expand_dims(weight, 1), [1, flen])
     return weight
 
@@ -56,6 +60,132 @@ def preprocessing(inputs, exp_sz, exp_ch):
         inputs = tf.image.resize_images(inputs, [exp_sz, exp_sz])
 
     return inputs
+
+
+def get_lgan_attr(data):
+    """
+    :param data: (string) name of the dataset
+    :return: (Dict) best performing FLAGS for each dataset
+    """
+    # lgan_attr = {
+    #     'usps'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'mnist'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'mnistm'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     # 'svhn'     : {'lgan_nn': 'lgan_large', 'ngf': 16, 'ndf': 16, 'nz': 100, 'jcb': 10, 'lw': 20.0, 'ow': 0.01,
+    #     #               'var'    : 3.0},
+    #     'svhn'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     # 'svhn'     : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 128, 'jcb': 16, 'lw': 20.0, 'ow': 0.01,
+    #     #               'var'    : 3.0},
+    #     'syndigits': {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     # 'cifar'    : {'lgan_nn': 'lgan_large', 'ngf': 32, 'ndf': 32, 'nz': 256, 'jcb': 10, 'lw': 20.0, 'ow': 0.01,
+    #     #               'var'    : 3.0},
+    #     'cifar'    : {'lgan_nn': 'lgan_large', 'ngf': 32, 'ndf': 32, 'nz': 512, 'jcb': 16, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'stl'      : {'lgan_nn': 'lgan_large', 'ngf': 32, 'ndf': 32, 'nz': 256, 'jcb': 10, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'gtsrb'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'synsigns' : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'amazon'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'webcam'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0},
+    #     'dslr'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+    #                   'var'    : 3.0}
+    # }
+
+    lgan_attr = {
+        'usps'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'mnist'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'mnistm'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        # 'svhn'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+        #               'var'    : 3.0},
+        'svhn'     : {'lgan_nn': 'lgan_small', 'ngf': 64, 'ndf': 64, 'nz': 64, 'jcb': 16, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        # 'syndigits': {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+        #               'var'    : 3.0},
+        'syndigits': {'lgan_nn': 'lgan_small', 'ngf': 64, 'ndf': 64, 'nz': 64, 'jcb': 16, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        # 'cifar'    : {'lgan_nn': 'lgan_small', 'ngf': 64, 'ndf': 64, 'nz': 128, 'jcb': 32, 'lw': 20.0, 'ow': 0.01,
+        #               'var'    : 3.0},
+        # 'stl'      : {'lgan_nn': 'lgan_small', 'ngf': 64, 'ndf': 64, 'nz': 128, 'jcb': 32, 'lw': 20.0, 'ow': 0.01,
+        #               'var'    : 3.0},
+        'cifar'    : {'lgan_nn': 'lgan_small', 'ngf': 128, 'ndf': 128, 'nz': 128, 'jcb': 32, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'stl'      : {'lgan_nn': 'lgan_small', 'ngf': 128, 'ndf': 128, 'nz': 128, 'jcb': 32, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'gtsrb'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'synsigns' : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'amazon'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'webcam'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'dslr'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0}
+    }
+
+    return lgan_attr[data]
+
+
+def make_lgan_name(data, exp_sz, exp_ch):
+    """
+    :param data: (string) name of the dataset
+    :param exp_sz: (int) experiment image size
+    :param exp_ch: (int) experiment number of channels
+    :return: (string) LGAN model name of the dataset
+    """
+    data_dict = get_lgan_attr(data)
+    lgan_name_list = [
+        data_dict['lgan_nn'],
+        data,
+        f"{exp_sz}",
+        f"{exp_ch}",
+        f"ngf_{data_dict['ngf']}",
+        f"ndf_{data_dict['ndf']}",
+        f"nz_{data_dict['nz']}",
+        f"lw_{data_dict['lw']}",
+        f"ow_{data_dict['ow']}",
+        f"var_{data_dict['var']}"
+    ]
+    lgan_name = '_'.join(lgan_name_list)
+    return lgan_name
+
+
+def get_lgan_name(src, trg):
+    """
+    :param src: (string) name of the source dataset
+    :param trg: (string) name of the target dataset
+    :return: (string, string) model name of the source and the target
+    """
+    _, _, exp_sz, _, _, exp_ch, _ = get_attr(src, trg)
+    source_name = make_lgan_name(src, exp_sz, exp_ch)
+    target_name = make_lgan_name(trg, exp_sz, exp_ch)
+
+    return source_name, target_name
+
+
+def update_lgan_flags(data, FLAGS):
+    data_dict = get_lgan_attr(data)
+    FLAGS.data = data
+    FLAGS.lgan_nn = data_dict['lgan_nn']
+    FLAGS.ngf = data_dict['ngf']
+    FLAGS.ndf = data_dict['ndf']
+    FLAGS.nz = data_dict['nz']
+    FLAGS.jcb = data_dict['jcb']
+    FLAGS.alpha = data_dict['lw']
+    FLAGS.beta = data_dict['ow']
+    FLAGS.lgan_var = data_dict['var']
 
 
 def normalize(x):

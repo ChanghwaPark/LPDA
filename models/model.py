@@ -8,12 +8,14 @@ import importlib
 import tensorbayes as tb
 import tensorflow as tf
 from tensorbayes.layers import placeholder, constant
+from tensorbayes.tfutils import softmax_cross_entropy_with_two_logits as softmax_xent_two
+from tensorflow.contrib.framework import arg_scope
 from tensorflow.python.ops.nn_impl import sigmoid_cross_entropy_with_logits as sigmoid_xent
 from tensorflow.python.ops.nn_ops import softmax_cross_entropy_with_logits_v2 as softmax_xent
 
 from data.dataset import get_attr
 from utils import accuracy, preprocessing, get_decay_var_op, get_grad_weight
-from .loss import lp_loss, label_propagate
+from .loss import lp_loss, label_propagate, lgan_loss
 
 
 def lpda(FLAGS):
@@ -24,7 +26,6 @@ def lpda(FLAGS):
 
     print("============================LPDA model initialization started.============================")
 
-    # nn_path = importlib.import_module(".{}".format(FLAGS.nn), package='networks')
     nn_path = importlib.import_module("networks.{}".format(FLAGS.nn))
     nn_class = getattr(nn_path, FLAGS.nn)
     nn = nn_class(FLAGS)
@@ -41,13 +42,18 @@ def lpda(FLAGS):
         trg_test_x=placeholder((None, trg_sz, trg_sz, trg_ch)),
         src_test_y=placeholder((None, nc)),
         trg_test_y=placeholder((None, nc)),
-        adpt=placeholder(None)
+        adpt=placeholder(None),
+        src_fake=placeholder((None, exp_sz, exp_sz, exp_ch)),
+        trg_fake=placeholder((None, exp_sz, exp_sz, exp_ch))
     ))
 
     cw = constant(1)
     dw = constant(FLAGS.dw)
     lw = constant(FLAGS.lw)
     wd = constant(FLAGS.wd)
+    xw = constant(FLAGS.xw)
+    sw = constant(FLAGS.sw)
+    tw = constant(FLAGS.tw)
 
     # Preprocess images to experiment size and channels
     src_x = preprocessing(T.src_x, exp_sz, exp_ch)
@@ -70,6 +76,7 @@ def lpda(FLAGS):
 
     # Source true label cross entropy minimization
     loss_src_class = tf.reduce_mean(softmax_xent(labels=T.src_y, logits=src_p))
+    loss_trg_cent = tf.reduce_mean(softmax_xent_two(labels=trg_p, logits=trg_p)) if FLAGS.xw > 0 else constant(0)
 
     # Adversarial domain confusion
     if FLAGS.dw > 0:
@@ -96,6 +103,10 @@ def lpda(FLAGS):
         loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
     else:
         loss_lp = constant(0)
+
+    with arg_scope([lgan_loss], classifier=nn.classifier):
+        loss_src_reg = lgan_loss(src_x, T.src_fake) if FLAGS.sw > 0 else constant(0)
+        loss_trg_reg = lgan_loss(trg_x, T.trg_fake) if FLAGS.tw > 0 else constant(0)
 
     # Weight decay
     if FLAGS.wd > 0:
@@ -124,7 +135,7 @@ def lpda(FLAGS):
     trg_acc = accuracy(T.trg_y, trg_p)
     src_test_acc = accuracy(T.src_test_y, src_test_p)
     trg_test_acc = accuracy(T.trg_test_y, trg_test_p)
-    trg_test_lp_acc = accuracy(T.trg_test_y, trg_test_yhat)
+    trg_test_lp_acc = accuracy(T.trg_test_y, trg_test_yhat) if FLAGS.lw > 0 else constant(0)
     fn_src_test_acc = tb.function(T.sess, [T.src_test_x, T.src_test_y], src_test_acc)
     fn_trg_test_acc = tb.function(T.sess, [T.trg_test_x, T.trg_test_y], trg_test_acc)
     fn_trg_test_lp_acc = tb.function(T.sess, [T.src_test_x, T.trg_test_x, T.src_test_y, T.trg_test_y], trg_test_lp_acc)
@@ -136,8 +147,7 @@ def lpda(FLAGS):
     # Optimizer
     if FLAGS.dw > 0:
         loss_disc = (loss_disc +
-                     wd * d_decay
-                     )
+                     wd * d_decay)
         var_disc = tf.get_collection('trainable_variables', 'disc')
         train_disc = tf.train.AdamOptimizer(FLAGS.lr, 0.5).minimize(loss_disc, var_list=var_disc)
     else:
@@ -146,7 +156,10 @@ def lpda(FLAGS):
     loss_main = (cw * loss_src_class +
                  T.adpt * dw * loss_dann +
                  # lw * loss_lp +
-                 wd * g_decay
+                 wd * g_decay +
+                 xw * loss_trg_cent +
+                 sw * loss_src_reg +
+                 tw * loss_trg_reg
                  )
 
     var_main = tf.get_collection('trainable_variables', 'class')
@@ -154,53 +167,73 @@ def lpda(FLAGS):
     # train_main = tf.group(train_main, ema_op)
 
     if FLAGS.lw:
-        trg_grad_w = get_grad_weight(trg_yhat, flen)
-        if FLAGS.cgw: trg_grad_w = tf.ones_like(trg_grad_w)
+        # trg_grad_w = get_grad_weight(trg_yhat, flen)
+        trg_grad_w = get_grad_weight(trg_yhat, flen, FLAGS.grad_val)
+        if not FLAGS.cgw: trg_grad_w = tf.ones_like(trg_grad_w)
+        """
+        # In the past: if FLAGS.cgw: trg_grad_w = tf.ones_like(trg_grad_w)
+        """
+        T.trg_grad_w = trg_grad_w
 
         for i in range(len(var_main)):
-            for name_madi in var_main[i].name.split('/'):
-                if 'sigma' in name_madi:
-                    sig_idx = i
+            if 'sigma' in var_main[i].name:
+                sig_idx = i
+            # for name_madi in var_main[i].name.split('/'):
+            #     if 'sigma' in name_madi:
+            #         sig_idx = i
+            #         print(sig_idx)
 
-    step_wo_disc, _ = get_decay_var_op(name='wo_inc')
-
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    with tf.control_dependencies(update_ops):
-        grad = []
-
-        wo_smooth_grad_w = tf.gradients(loss_main, var_main)
         cyc_sf_grad = tf.gradients(loss_lp, src_e)
         cyc_tf_grad = tf.gradients(loss_lp, trg_e)
         sf_grad_w = tf.gradients(src_e, var_main, cyc_sf_grad)
         cyc_sigma_grad = tf.gradients(loss_lp, var_main[sig_idx])
 
         # to evaluate the effect of weighted grad
-        weighted_grad = cyc_tf_grad[0][:FLAGS.bs] * trg_grad_w
+        weighted_grad = [cyc_tf_grad[0][:FLAGS.bs] * trg_grad_w]
         tf_grad_w = tf.gradients(trg_e, var_main, weighted_grad)
-        for i in range(len(var_main)):
+
+    # else:
+        # sig_idx = None
+        # sf_grad_w = None
+        # tf_grad_w = None
+        # cyc_sigma_grad = None
+    step_wo_disc, _ = get_decay_var_op(name='wo_inc')
+
+    # update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    # with tf.control_dependencies(update_ops):
+    grad = []
+
+    wo_smooth_grad_w = tf.gradients(loss_main, var_main)
+    # cyc_sf_grad = tf.gradients(loss_lp, src_e)
+    # cyc_tf_grad = tf.gradients(loss_lp, trg_e)
+    # sf_grad_w = tf.gradients(src_e, var_main, cyc_sf_grad)
+    # cyc_sigma_grad = tf.gradients(loss_lp, var_main[sig_idx])
+    #
+    # # to evaluate the effect of weighted grad
+    # weighted_grad = [cyc_tf_grad[0][:FLAGS.bs] * trg_grad_w]
+    # tf_grad_w = tf.gradients(trg_e, var_main, weighted_grad)
+
+    for i in range(len(var_main)):
+        if FLAGS.lw == 0:
+            grad.append(wo_smooth_grad_w[i])
+        else:
             if i == sig_idx:
-                # print('sigma grad')
-                # print(var_main[i].name)
                 grad.append(wo_smooth_grad_w[i] + cyc_sigma_grad[0])
             else:
                 if sf_grad_w[i] == None and tf_grad_w[i] == None:
-                    # print('sf none tf none')
-                    # print(var_main[i].name)
                     grad.append(wo_smooth_grad_w[i])
+                    # print("both none")
                 elif sf_grad_w[i] == None:
-                    # print('sf none')
-                    # print(var_main[i].name)
                     grad.append(wo_smooth_grad_w[i] + tf_grad_w[i])
+                    # print("sf none")
                 elif tf_grad_w[i] == None:
-                    # print('tf none')
-                    # print(var_main[i].name)
                     grad.append(wo_smooth_grad_w[i] + sf_grad_w[i])
+                    # print("tf none")
                 else:
-                    # print('no none')
-                    # print(var_main[i].name)
                     grad.append(wo_smooth_grad_w[i] + sf_grad_w[i] + tf_grad_w[i])
-        train_main = tf.train.AdamOptimizer(FLAGS.lr, 0.5).apply_gradients(list(zip(grad, var_main)),
-                                                                           global_step=step_wo_disc)
+                    # print("both not none")
+    train_main = tf.train.AdamOptimizer(FLAGS.lr, 0.5).apply_gradients(list(zip(grad, var_main)),
+                                                                       global_step=step_wo_disc)
     train_main = tf.group(train_main, ema_op)
 
     # Summarizations
@@ -208,9 +241,15 @@ def lpda(FLAGS):
     summary_main = [tf.summary.scalar('domain/loss_dann', loss_dann),
                     tf.summary.scalar('class/loss_src_class', loss_src_class),
                     tf.summary.scalar('lp/loss_lp', loss_lp),
+                    tf.summary.scalar('smooth/loss_trg_cent', loss_trg_cent),
+                    tf.summary.scalar('smooth/loss_src_reg', loss_src_reg),
+                    tf.summary.scalar('smooth/loss_trg_reg', loss_trg_reg),
                     tf.summary.scalar('hyper/cw', cw),
                     tf.summary.scalar('hyper/dw', dw),
                     tf.summary.scalar('hyper/lw', lw),
+                    tf.summary.scalar('hyper/xw', xw),
+                    tf.summary.scalar('hyper/sw', sw),
+                    tf.summary.scalar('hyper/tw', tw),
                     tf.summary.scalar('acc/src_acc', src_acc),
                     tf.summary.scalar('acc/trg_acc', trg_acc)]
 
@@ -223,7 +262,11 @@ def lpda(FLAGS):
     T.ops_print = [c('class'), loss_src_class,
                    c('disc'), loss_disc,
                    c('dann'), loss_dann,
-                   c('lp'), loss_lp]
+                   c('lp'), loss_lp,
+                   c('cent'), loss_trg_cent,
+                   c('src_reg'), loss_src_reg,
+                   c('trg_reg'), loss_trg_reg
+                   ]
     T.ops_disc = [summary_disc, train_disc]
     T.ops_main = [summary_main, train_main]
     T.fn_src_test_acc = fn_src_test_acc
