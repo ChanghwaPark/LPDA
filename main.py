@@ -6,10 +6,12 @@ from pprint import pprint
 import tensorflow as tf
 from termcolor import colored
 
-from data.dataset import get_attr
+from data.dataset import get_attr, get_attr_image
 from models.lgan_model import lgan
 from models.model import lpda
+from models.model_image import lpda_image
 from trains.train import train
+from trains.train_image import train_image
 from utils import get_lgan_name, update_lgan_flags
 
 # Define flag arguments
@@ -111,10 +113,14 @@ def main(_):
     model_name = '_'.join(setup_list)
     print(colored(f"Model name: {model_name}", 'blue'))
 
-    _, _, exp_sz, _, _, exp_ch, _ = get_attr(FLAGS.src, FLAGS.trg)
+    if FLAGS.src in ['amazon', 'dslr', 'webcam', 'c', 'i', 'p']:
+        exp_sz, exp_ch, _ = get_attr_image(FLAGS.nn, FLAGS.src)
+        FLAGS.bs = 36
+    else:
+        _, _, exp_sz, _, _, exp_ch, _ = get_attr(FLAGS.src, FLAGS.trg)
     FLAGS.sz = exp_sz
     FLAGS.ch = exp_ch
-    lgan_source, lgan_target = get_lgan_name(FLAGS.src, FLAGS.trg)
+    lgan_source, lgan_target = get_lgan_name(FLAGS.src, FLAGS.trg, exp_sz, exp_ch)
 
     # Make LGAN models and restore
     if FLAGS.sw > 0:
@@ -142,13 +148,25 @@ def main(_):
         Lt = None
 
     # Make main model and initialize
-    M = lpda(FLAGS)
+    if FLAGS.src in ['amazon', 'dslr', 'webcam', 'c', 'i', 'p']:
+        M = lpda_image(FLAGS)
+    else:
+        M = lpda(FLAGS)
     M.sess.run(tf.global_variables_initializer())
 
     saver = tf.train.Saver()
 
     # Train the main model
-    train(M, FLAGS, Ls, Lt, saver=saver, model_name=model_name)
+    if FLAGS.src in ['amazon', 'dslr', 'webcam', 'c', 'i', 'p']:
+        if FLAGS.nn == 'resnet':
+            var_resnet = tf.get_collection('trainable_variables', 'resnet_model')
+            var_resnet = [v for v in var_resnet if 'dense' not in v.name]
+            path = tf.train.latest_checkpoint(os.path.join(FLAGS.datadir, 'resnet_imagenet_v2_fp32_20181001'))
+            tf.train.Saver(var_resnet).restore(M.sess, path)
+            print(colored(f"Resnet model is restored from {path}", 'blue'))
+        train_image(M, FLAGS, Ls, Lt, saver=saver, model_name=model_name)
+    else:
+        train(M, FLAGS, Ls, Lt, saver=saver, model_name=model_name)
 
 
 if __name__ == '__main__':

@@ -39,6 +39,7 @@ flags.DEFINE_float('lgan_var', 3, 'Gaussian noise variance for the training')
 
 ## Others
 flags.DEFINE_string('gpu', '0', 'GPU number')
+flags.DEFINE_string('nn', 'resnet', 'Network architecture for LPDA')
 
 FLAGS = flags.FLAGS
 

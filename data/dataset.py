@@ -1,3 +1,7 @@
+import cv2
+import tensorflow as tf
+from numpy import array
+
 from .data_loaders import *
 
 
@@ -32,6 +36,31 @@ class Data(object):
             x = self.normalize_sample(x)
         if invert_randomly:
             x = self.invert_randomly(x)
+        y = self.labels[idx]
+        return x, y
+
+
+class DataImage(object):
+    def __init__(self, images, labels, sz, nn, training=True):
+        self.sz = sz
+        self.nn = nn
+        self.training = training
+        if training:
+            self.images = images
+        else:
+            self.images = test_image_process(images, sz, nn)
+        self.labels = labels
+        self.pointer = 0
+
+    def next_batch(self, bs, shuffle=True):
+        if shuffle:
+            idx = np.random.choice(len(self.images), bs, replace=False)
+        else:
+            idx = range(self.pointer, self.pointer + bs)
+            self.pointer += bs
+            if self.pointer + bs > len(self.images):
+                self.pointer = 0
+        x = self.images[idx]
         y = self.labels[idx]
         return x, y
 
@@ -258,7 +287,191 @@ class synsigns(object):
         self.val_num = val_y.shape[0]
 
 
-# TODO: Should implement office dataset; amazon, webcam, dslr
+class amazon(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'office/amazon_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(31)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+class dslr(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'office/dslr_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(31)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+class webcam(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'office/webcam_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(31)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+class c(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'image-clef/c_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(12)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+class i(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'image-clef/i_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(12)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+class p(object):
+    def __init__(self, FLAGS):
+        fnames, labels = read_lines(os.path.join(FLAGS.datadir, 'image-clef/p_list.txt'))
+        images = resize_image(fnames)
+        labels = np.eye(12)[array(labels).reshape(-1)]
+
+        train_x = images
+        test_x = images
+        train_y = labels
+        test_y = labels
+
+        sz, _ = get_attr_image(FLAGS.nn)
+
+        self.train = DataImage(train_x, train_y, sz, FLAGS.nn, training=True)
+        self.test = DataImage(test_x, test_y, sz, FLAGS.nn, training=False)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+
+def read_lines(fname):
+    data = open(fname).readlines()
+    fnames = []
+    labels = []
+    for line in data:
+        fnames.append(line.split()[0])
+        labels.append(int(line.split()[1]))
+    return fnames, labels
+
+
+def resize_image(fnames):
+    images = np.ndarray([len(fnames), 256, 256, 3])
+    for i in range(len(fnames)):
+        img = cv2.imread(fnames[i])
+        img = cv2.resize(img, (256, 256))
+        img = img.astype(np.float32)
+        img *= 1. / 255
+        img = img[:, :, [2, 1, 0]]  # BGR to RGB
+        images[i] = img
+    return images
+
+
+def normalize_image(image, nn):
+    if nn == 'alexnet':
+        mean = [0.481, 0.458, 0.409]  # mean of ilsvrc_2012_mean.npy after converting (2, 1, 0)
+        image = image - mean
+    elif nn == 'resnet':
+        mean = [0.485, 0.456, 0.406]  # TODO: should check if this is right
+        std = [0.229, 0.224, 0.225]
+        image = (image - mean) / std
+    else:
+        raise ValueError(f"Network {nn} is not compatible with the data.")
+    return image
+
+
+def train_image_process(image, sz, nn='resnet'):
+    image = tf.random_crop(image, [tf.shape(image)[0], sz, sz, 3])
+    image = tf.image.random_flip_left_right(image)
+    image = normalize_image(image, nn)
+    return image
+
+
+def test_image_process(images, sz, nn):
+    output = np.ndarray([images.shape[0], sz, sz, images.shape[3]])
+    # Central crop
+    assert images.shape[1] >= sz and images.shape[2] >= sz
+    h_off = (images.shape[1] - sz) // 2
+    w_off = (images.shape[2] - sz) // 2
+    output = images[:, h_off:h_off + sz, w_off:w_off + sz, :]
+    # Normalize
+    output = normalize_image(output, nn)
+    return output
+
 
 def get_attr(source, target=None):
     # Processed_attr: [processed size, processed channels, number of classes]
@@ -272,9 +485,12 @@ def get_attr(source, target=None):
         'stl'      : [32, 3, 9],
         'gtsrb'    : [40, 3, 43],
         'synsigns' : [40, 3, 43],
-        'amazon'   : [227, 3, 31],
-        'webcam'   : [227, 3, 31],
-        'dslr'     : [227, 3, 31]
+        'amazon'   : [256, 3, 31],
+        'webcam'   : [256, 3, 31],
+        'dslr'     : [256, 3, 31],
+        'c'        : [256, 3, 12],
+        'i'        : [256, 3, 12],
+        'p'        : [256, 3, 12]
     }
 
     # Desired_attr: [desired size, desired channels, source normalize, target normalize]
@@ -290,13 +506,7 @@ def get_attr(source, target=None):
         'cifar_stl'     : [32, 3],
         'stl_cifar'     : [32, 3],
         'synsigns_gtsrb': [40, 3],
-        'gtsrb_synsigns': [40, 3],
-        'amazon_webcam' : [227, 3],
-        'webcam_amazon' : [227, 3],
-        'amazon_dslr'   : [227, 3],
-        'dslr_amazon'   : [227, 3],
-        'webcam_dslr'   : [227, 3],
-        'dslr_webcam'   : [227, 3]
+        'gtsrb_synsigns': [40, 3]
     }
 
     if target == None:
@@ -314,6 +524,31 @@ def get_attr(source, target=None):
     return src_sz, trg_sz, exp_sz, src_ch, trg_ch, exp_ch, src_nc
 
 
+def get_attr_image(nn, source=None):
+    exp_ch = 3
+
+    if nn == 'alexnet':
+        exp_sz = 227
+    elif nn == 'resnet':
+        exp_sz = 224
+    else:
+        raise ValueError(f"Network {nn} is not compatible with the data.")
+
+    if source:
+        office_dataset = ['amazon', 'dslr', 'webcam']
+        image_clef_dataset = ['i', 'c', 'p']
+
+        if source in office_dataset:
+            exp_nc = 31
+        elif source in image_clef_dataset:
+            exp_nc = 12
+        else:
+            raise ValueError(f"Dataset {source} is not available.")
+        return exp_sz, exp_ch, exp_nc
+    else:
+        return exp_sz, exp_ch
+
+
 def get_data(domain, FLAGS):
     return eval(domain)(FLAGS)
 
@@ -323,7 +558,12 @@ def get_info(data, bs):
     print(f"The number of test data is          {data.test_num}")
     print(f"The number of validation data is    {data.val_num}")
     images, labels = data.train.next_batch(bs)
-    print(f"The shape of the batch images is    {images.shape}")
-    print(f"The shape of the batch labels is    {labels.shape}")
-    print(f"The max value of the images is      {np.max(images)}")
-    print(f"The min value of the images is      {np.min(images)}")
+    print(f"The shape of the train batch images is    {images.shape}")
+    print(f"The shape of the train batch labels is    {labels.shape}")
+    print(f"The max value of the train images is      {np.max(images)}")
+    print(f"The min value of the train images is      {np.min(images)}")
+    images, labels = data.test.next_batch(bs)
+    print(f"The shape of the test batch images is    {images.shape}")
+    print(f"The shape of the test batch labels is    {labels.shape}")
+    print(f"The max value of the test images is      {np.max(images)}")
+    print(f"The min value of the test images is      {np.min(images)}")

@@ -132,6 +132,12 @@ def get_lgan_attr(data):
         'webcam'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0},
         'dslr'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'c'        : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'i'        : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'p'        : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0}
     }
 
@@ -162,13 +168,13 @@ def make_lgan_name(data, exp_sz, exp_ch):
     return lgan_name
 
 
-def get_lgan_name(src, trg):
+def get_lgan_name(src, trg, exp_sz, exp_ch):
     """
     :param src: (string) name of the source dataset
     :param trg: (string) name of the target dataset
     :return: (string, string) model name of the source and the target
     """
-    _, _, exp_sz, _, _, exp_ch, _ = get_attr(src, trg)
+    # _, _, exp_sz, _, _, exp_ch, _ = get_attr(src, trg)
     source_name = make_lgan_name(src, exp_sz, exp_ch)
     target_name = make_lgan_name(trg, exp_sz, exp_ch)
 
@@ -215,7 +221,7 @@ def save_model(saver, M, model_dir, global_step):
 
 def save_value(fn_val, tag, data,
                train_writer=None, global_step=None, print_list=None,
-               full=True, lp=False):
+               full=True, lp=False, bs=128):
     """Log fn_val evaluation to tf.summary.FileWriter
     fn_val       - (fn) Takes (x, y) as input and returns value
     tag          - (str) summary tag for FileWriter
@@ -225,7 +231,7 @@ def save_value(fn_val, tag, data,
     print_list   - (list) list of vals to print to stdout
     full         - (bool) use full dataset v. first 1000 samples
     """
-    acc, summary = compute_value(fn_val, tag, data, full, lp)
+    acc, summary = compute_value(fn_val, tag, data, full, lp, bs)
     train_writer.add_summary(summary, global_step)
     output = acc
     acc = round(acc, 3)
@@ -233,7 +239,7 @@ def save_value(fn_val, tag, data,
     return output
 
 
-def compute_value(fn_val, tag, data, full=True, lp=False):
+def compute_value(fn_val, tag, data, full=True, lp=False, bs=128):
     """Compute value w.r.t. data
     fn_val - (fn) Takes (x, y) as input and returns value
     tag    - (str) summary tag for FileWriter
@@ -254,7 +260,7 @@ def compute_value(fn_val, tag, data, full=True, lp=False):
 
         acc = 0.
         n = len(xs)
-        bs = 128
+        # bs = 128
 
         for i in range(0, n, bs):
             # x = data.preprocess(xs[i:i + bs])

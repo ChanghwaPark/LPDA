@@ -21,7 +21,7 @@ from utils import delete_existing, save_value, save_model, adaptation_factor, no
 
 def update_dict(M, feed_dict, FLAGS, src=None, trg=None, Ls=None, Lt=None):
     if src:
-        src_x, src_y = src.train.next_batch(FLAGS.bs, invert_randomly=FLAGS.src_inv)
+        src_x, src_y = src.train.next_batch(FLAGS.bs)
         feed_dict.update({M.src_x: src_x, M.src_y: src_y})
         if Ls:
             z = np.random.normal(0, FLAGS.sv, (FLAGS.bs, FLAGS.src_nz))
@@ -31,7 +31,7 @@ def update_dict(M, feed_dict, FLAGS, src=None, trg=None, Ls=None, Lt=None):
             src_fake = Ls.sess.run(Ls.fake_x, feed_dict={Ls.x: src_x, Ls.z: z})
             feed_dict.update({M.src_fake: src_fake})
     if trg:
-        trg_x, trg_y = trg.train.next_batch(FLAGS.bs, invert_randomly=FLAGS.trg_inv)
+        trg_x, trg_y = trg.train.next_batch(FLAGS.bs)
         feed_dict.update({M.trg_x: trg_x, M.trg_y: trg_y})
         if Lt:
             z = np.random.normal(0, FLAGS.tv, (FLAGS.bs, FLAGS.trg_nz))
@@ -43,14 +43,14 @@ def update_dict(M, feed_dict, FLAGS, src=None, trg=None, Ls=None, Lt=None):
 
 
 def stopping_criteria(past_acc, current_acc):
-    if current_acc < 0.7:
-        print(f"Trg_test_ema, {round(current_acc, 5)} is less than 0.7")
+    if current_acc < 0.5:
+        print(f"Trg_test_ema, {round(current_acc, 5)} is less than 0.5")
     if current_acc < past_acc:
         print(f"Trg_test_ema, {round(current_acc, 5)} is less than last save point trg_test_ema, {round(past_acc, 5)}")
-    return (current_acc < 0.7) | (current_acc < past_acc)
+    return (current_acc < 0.5) | (current_acc < past_acc)
 
 
-def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
+def train_image(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     """
     :param L: (TensorDIct) the LGAN model
     :param M: (TensorDict) the model
@@ -63,7 +63,6 @@ def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     itersave = 20000
     n_epoch = FLAGS.epoch
     epoch = 0
-    max_trg_train_ema_1k = 0.0
     max_trg_test_ema = 0.0
     past_trg_test_ema = 0.0
 
@@ -101,27 +100,63 @@ def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     epoch_time = deque(maxlen=5)
     temp_time = time.time()
 
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
     for i in range(n_epoch * iterep):
         # Train the discriminator
+        # For batch normalization
+
         update_dict(M, feed_dict, FLAGS, src, trg, Ls, Lt)
-        summary, _ = M.sess.run(M.ops_disc, feed_dict)
+        # summary, _ = M.sess.run(M.ops_disc, feed_dict)
+        summary = M.sess.run([M.ops_disc, update_ops], feed_dict)[0][0]
         train_writer.add_summary(summary, i + 1)
 
         # Train the generator and the classifier
         update_dict(M, feed_dict, FLAGS, src, trg, Ls, Lt)
-        summary, _ = M.sess.run(M.ops_main, feed_dict)
+        # summary, _ = M.sess.run(M.ops_main, feed_dict)
+        summary = M.sess.run([M.ops_main, update_ops], feed_dict)[0][0]
         train_writer.add_summary(summary, i + 1)
         train_writer.flush()
 
-        # cyc_tf_grad = M.sess.run(M.cyc_tf_grad, feed_dict)
-        # print(len(cyc_tf_grad))
-        # print(len(cyc_tf_grad[0]))
-        # # print(len(cyc_tf_grad[0][0]))
-        # print(cyc_tf_grad)
-        # print(cyc_tf_grad[0])
+        ########################################
+        # train_src_x = M.sess.run(M.temp_src_x, feed_dict)
+        # train_trg_x = M.sess.run(M.temp_trg_x, feed_dict)
+        # test_src_x = src.test.images
+        # test_src_y = src.test.labels
+        # idx = np.random.permutation(range(len(test_src_x)))
+        # test_src_x = test_src_x[idx]
+        # test_src_y = test_src_y[idx]
+        # test_trg_x = trg.test.images
+        # test_trg_y = trg.test.labels
+        # idx = np.random.permutation(range(len(test_trg_x)))
+        # test_trg_x = test_trg_x[idx]
+        # test_trg_y = test_trg_y[idx]
+        # import matplotlib.pyplot as plt
+        # for j in range(5):
+        #     print(feed_dict[M.src_y][j])
+        #     print(np.max(train_src_x[j]))
+        #     print(np.min(train_src_x[j]))
+        #     plt.imshow(train_src_x[j])
+        #     plt.show()
+        #     print(feed_dict[M.trg_y][j])
+        #     print(np.max(train_trg_x[j]))
+        #     print(np.min(train_trg_x[j]))
+        #     plt.imshow(train_trg_x[j])
+        #     plt.show()
+        #     print(test_src_y[j])
+        #     print(np.max(test_src_x[j]))
+        #     print(np.min(test_src_x[j]))
+        #     plt.imshow(test_src_x[j])
+        #     plt.show()
+        #     print(test_trg_y[j])
+        #     print(np.max(test_trg_x[j]))
+        #     print(np.min(test_trg_x[j]))
+        #     plt.imshow(test_trg_x[j])
+        #     plt.show()
         #
         # import sys
         # sys.exit()
+        ########################################
 
         end_epoch, epoch = tb.utils.progbar(i, iterep,
                                             message='{}/{}'.format(i, n_epoch * iterep),
@@ -143,20 +178,17 @@ def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
                        src.test, train_writer, i + 1, print_list, bs=FLAGS.bs)
             save_value(M.fn_src_ema_acc, 'test/src_test_ema',
                        src.test, train_writer, i + 1, print_list, bs=FLAGS.bs)
-            trg_train_ema_1k = save_value(M.fn_trg_ema_acc, 'test/trg_train_ema_1k',
-                                          trg.train, train_writer, i + 1, print_list, full=False, bs=FLAGS.bs)
             save_value(M.fn_trg_test_acc, 'test/trg_test',
                        trg.test, train_writer, i + 1, print_list, bs=FLAGS.bs)
-            save_value(M.fn_trg_test_lp_acc, 'test/trg_test_lp',
-                       [src.test, trg.test], train_writer, i + 1, print_list, lp=True, bs=FLAGS.bs)
+            # save_value(M.fn_trg_test_lp_acc, 'test/trg_test_lp',
+            #            [src.test, trg.test], train_writer, i + 1, print_list, lp=True)
             trg_test_ema = save_value(M.fn_trg_ema_acc, 'test/trg_test_ema',
                                       trg.test, train_writer, i + 1, print_list, bs=FLAGS.bs)
 
             print_list += ['epoch', epoch]
             print(print_list)
 
-            if max_trg_train_ema_1k < trg_train_ema_1k:
-                max_trg_train_ema_1k = trg_train_ema_1k
+            if max_trg_test_ema < trg_test_ema:
                 max_trg_test_ema = trg_test_ema
 
             if FLAGS.adpt:
@@ -182,12 +214,7 @@ def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     if saver:
         save_model(saver, M, model_dir, i + 1)
 
-    print(f"Max_trg_train_ema_1k: {max_trg_train_ema_1k} and max_trg_test_ema: {max_trg_test_ema}")
+    print(f"Max_trg_test_ema: {max_trg_test_ema}")
     print("============================LPDA training ended.============================")
     end_time = datetime.datetime.now(timezone('Asia/Seoul')).strftime('%Y-%m-%d %I:%M:%S %p')
     print(colored(end_time, "blue"))
-
-    with open("result.txt", "a") as result_file:
-        result_file.write(model_name + "\n")
-        result_file.write(str(max_trg_test_ema) + "\n")
-        result_file.close()

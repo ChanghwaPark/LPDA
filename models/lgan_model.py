@@ -6,7 +6,7 @@ from tensorbayes.layers import placeholder, constant
 from tensorflow.python.ops.losses.losses_impl import absolute_difference as abs_diff
 from tensorflow.python.ops.nn_impl import sigmoid_cross_entropy_with_logits as sigmoid_xent
 
-from data.dataset import get_attr
+from data.dataset import get_attr, train_image_process
 from utils import preprocessing
 
 
@@ -44,15 +44,23 @@ def lgan(FLAGS, inference=False):
     ))
 
     # Preprocess x to the experiment size
-    T.real_x = real_x = preprocessing(T.x, exp_sz, exp_ch)
+    if FLAGS.data in ['amazon', 'dslr', 'webcam', 'c', 'i', 'p']:
+        T.real_x = real_x = train_image_process(T.x, exp_sz)
+    else:
+        T.real_x = real_x = preprocessing(T.x, exp_sz, exp_ch)
 
     # Compute G(x, z) and G(x, 0)
-    T.fake_x = fake_x = nn.generator(real_x, T.z, phase=True)
+    # T.fake_x = fake_x = nn.generator(real_x, T.z, phase=True)
 
     # Return the model when inferencing LGAN model
     if inference:
+        # Compute G(x, z) and G(x, 0)
+        T.fake_x = nn.generator(real_x, T.z, phase=False)
         print("============================LGAN model initialization ended.============================")
         return T
+    else:
+        # Compute G(x, z) and G(x, 0)
+        T.fake_x = fake_x = nn.generator(real_x, T.z, phase=True)
 
     fake_x0 = nn.generator(real_x, tf.zeros_like(T.z), phase=True)
 

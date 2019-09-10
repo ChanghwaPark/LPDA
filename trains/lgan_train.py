@@ -82,7 +82,7 @@ def lgan_train(L, FLAGS, saver=None, lgan_name=None):
         train_writer.flush()
 
         end_epoch, epoch = tb.utils.progbar(i, iterep,
-                                            message='{}/{}'.format(epoch, i),
+                                            message='{}/{}'.format(i, n_epoch * iterep),
                                             display=True)
 
         if end_epoch:
