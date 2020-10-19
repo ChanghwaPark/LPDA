@@ -15,7 +15,7 @@ from tensorflow.python.ops.nn_ops import softmax_cross_entropy_with_logits_v2 as
 
 from data.dataset import get_attr
 from utils import accuracy, preprocessing, get_decay_var_op, get_grad_weight
-from .loss import lp_loss, label_propagate, lgan_loss
+from .loss import lp_loss, label_propagate, lgan_loss, vat_loss
 
 
 def lpda(FLAGS):
@@ -32,19 +32,34 @@ def lpda(FLAGS):
     src_sz, trg_sz, exp_sz, src_ch, trg_ch, exp_ch, nc = get_attr(FLAGS.src, FLAGS.trg)
     print(f"Image size: {exp_sz}, number of channels: {exp_ch}, number of classes: {nc}")
 
+    if not FLAGS.src in ['roomA', 'roomB']:
+        src_sz1 = src_sz
+        src_sz2 = src_sz
+        trg_sz1 = trg_sz
+        trg_sz2 = trg_sz
+        exp_sz1 = exp_sz
+        exp_sz2 = exp_sz
+    else:
+        src_sz1 = src_sz
+        src_sz2 = 400
+        trg_sz1 = trg_sz
+        trg_sz2 = 400
+        exp_sz1 = exp_sz
+        exp_sz2 = 400
+
     T = tb.utils.TensorDict(dict(
         sess=tf.Session(config=tb.growth_config()),
-        src_x=placeholder((None, src_sz, src_sz, src_ch)),
+        src_x=placeholder((None, src_sz1, src_sz2, src_ch)),
         src_y=placeholder((None, nc)),
-        trg_x=placeholder((None, trg_sz, trg_sz, trg_ch)),
+        trg_x=placeholder((None, trg_sz1, trg_sz2, trg_ch)),
         trg_y=placeholder((None, nc)),
-        src_test_x=placeholder((None, src_sz, src_sz, src_ch)),
-        trg_test_x=placeholder((None, trg_sz, trg_sz, trg_ch)),
+        src_test_x=placeholder((None, src_sz1, src_sz2, src_ch)),
+        trg_test_x=placeholder((None, trg_sz1, trg_sz2, trg_ch)),
         src_test_y=placeholder((None, nc)),
         trg_test_y=placeholder((None, nc)),
         adpt=placeholder(None),
-        src_fake=placeholder((None, exp_sz, exp_sz, exp_ch)),
-        trg_fake=placeholder((None, exp_sz, exp_sz, exp_ch))
+        src_fake=placeholder((None, exp_sz1, exp_sz2, exp_ch)),
+        trg_fake=placeholder((None, exp_sz1, exp_sz2, exp_ch))
     ))
 
     cw = constant(1)
@@ -54,12 +69,20 @@ def lpda(FLAGS):
     xw = constant(FLAGS.xw)
     sw = constant(FLAGS.sw)
     tw = constant(FLAGS.tw)
+    vsw = constant(FLAGS.vsw)
+    vtw = constant(FLAGS.vtw)
 
     # Preprocess images to experiment size and channels
-    src_x = preprocessing(T.src_x, exp_sz, exp_ch)
-    trg_x = preprocessing(T.trg_x, exp_sz, exp_ch)
-    src_test_x = preprocessing(T.src_test_x, exp_sz, exp_ch)
-    trg_test_x = preprocessing(T.trg_test_x, exp_sz, exp_ch)
+    if not FLAGS.src in ['roomA', 'roomB']:
+        src_x = preprocessing(T.src_x, exp_sz, exp_ch)
+        trg_x = preprocessing(T.trg_x, exp_sz, exp_ch)
+        src_test_x = preprocessing(T.src_test_x, exp_sz, exp_ch)
+        trg_test_x = preprocessing(T.trg_test_x, exp_sz, exp_ch)
+    else:
+        src_x = T.src_x
+        trg_x = T.trg_x
+        src_test_x = T.src_test_x
+        trg_test_x = T.trg_test_x
 
     # The features and the predictions of the source and the target images
     src_e = nn.classifier(src_x, phase=True, enc_phase=True, trim=FLAGS.trim)
@@ -95,18 +118,29 @@ def lpda(FLAGS):
 
     # Label propagation
     if FLAGS.lw > 0:
-        with tf.variable_scope('class', reuse=tf.AUTO_REUSE):
-            sigma = tf.get_variable('sigma', shape=[flen], initializer=tf.constant_initializer(1.))
+        if FLAGS.sigma == -1:
+            with tf.variable_scope('class', reuse=tf.AUTO_REUSE):
+                # sigma = tf.get_variable('sigma', shape=[flen], initializer=tf.constant_initializer(1.))
+                sigma = tf.get_variable('sigma', shape=[flen], initializer=tf.constant_initializer(FLAGS.sigma_init))
+        else:
+            sigma = tf.constant(FLAGS.sigma, dtype=tf.float32, shape=[flen], name='sigma')
         trg_yhat, src_yhat = label_propagate(src_e, trg_e, T.src_y, FLAGS.bs, sigma, FLAGS.lpc, FLAGS.lp_iter)
         trg_test_yhat, _ = label_propagate(src_test_e, trg_test_e, T.src_test_y, FLAGS.bs, sigma, FLAGS.lpc,
                                            FLAGS.lp_iter)
-        loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
+        # loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
+        loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat, FLAGS.lp_loss)
     else:
         loss_lp = constant(0)
 
     with arg_scope([lgan_loss], classifier=nn.classifier):
         loss_src_reg = lgan_loss(src_x, T.src_fake) if FLAGS.sw > 0 else constant(0)
         loss_trg_reg = lgan_loss(trg_x, T.trg_fake) if FLAGS.tw > 0 else constant(0)
+
+    # Virtual adversarial training
+    loss_src_vat = vsw * vat_loss(src_x, src_p, nn.classifier) if FLAGS.vsw > 0 else constant(0)
+    loss_trg_vat = vtw * vat_loss(trg_x, trg_p, nn.classifier) if FLAGS.vtw > 0 else constant(0)
+    loss_src_reg += loss_src_vat
+    loss_trg_reg += loss_trg_vat
 
     # Weight decay
     if FLAGS.wd > 0:
@@ -174,10 +208,12 @@ def lpda(FLAGS):
         # In the past: if FLAGS.cgw: trg_grad_w = tf.ones_like(trg_grad_w)
         """
         T.trg_grad_w = trg_grad_w
-
-        for i in range(len(var_main)):
-            if 'sigma' in var_main[i].name:
-                sig_idx = i
+        if FLAGS.sigma == -1:
+            for i in range(len(var_main)):
+                if 'sigma' in var_main[i].name:
+                    sig_idx = i
+        else:
+            sig_idx = None
             # for name_madi in var_main[i].name.split('/'):
             #     if 'sigma' in name_madi:
             #         sig_idx = i
@@ -186,7 +222,8 @@ def lpda(FLAGS):
         cyc_sf_grad = tf.gradients(loss_lp, src_e)
         cyc_tf_grad = tf.gradients(loss_lp, trg_e)
         sf_grad_w = tf.gradients(src_e, var_main, cyc_sf_grad)
-        cyc_sigma_grad = tf.gradients(loss_lp, var_main[sig_idx])
+        if FLAGS.sigma == -1:
+            cyc_sigma_grad = tf.gradients(loss_lp, var_main[sig_idx])
 
         # to evaluate the effect of weighted grad
         weighted_grad = [cyc_tf_grad[0][:FLAGS.bs] * trg_grad_w]
@@ -217,7 +254,7 @@ def lpda(FLAGS):
         if FLAGS.lw == 0:
             grad.append(wo_smooth_grad_w[i])
         else:
-            if i == sig_idx:
+            if (sig_idx is not None) and (i == sig_idx):
                 grad.append(wo_smooth_grad_w[i] + cyc_sigma_grad[0])
             else:
                 if sf_grad_w[i] == None and tf_grad_w[i] == None:
@@ -274,6 +311,7 @@ def lpda(FLAGS):
     T.fn_trg_test_lp_acc = fn_trg_test_lp_acc
     T.fn_src_ema_acc = fn_src_ema_acc
     T.fn_trg_ema_acc = fn_trg_ema_acc
+    T.sigma = sigma
 
     print("============================LPDA model initialization ended.============================")
 

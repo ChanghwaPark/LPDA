@@ -1,3 +1,5 @@
+import pickle
+
 import cv2
 import tensorflow as tf
 from numpy import array
@@ -89,6 +91,35 @@ class usps(object):
         self.val_num = val_y.shape[0]
 
 
+class usps1800(object):
+    def __init__(self, FLAGS):
+        usps_data = load_usps(val=FLAGS.val, scale28=True, zero_centre=FLAGS.zc)
+        train_x = usps_data.train_X
+        test_x = usps_data.test_X
+        val_x = usps_data.val_X
+
+        train_x = np.transpose(train_x, (0, 2, 3, 1)).astype(np.float32)
+        test_x = np.transpose(test_x, (0, 2, 3, 1)).astype(np.float32)
+        val_x = np.transpose(val_x, (0, 2, 3, 1)).astype(np.float32)
+
+        train_y = np.eye(10)[usps_data.train_y.reshape(-1)]
+        test_y = np.eye(10)[usps_data.test_y.reshape(-1)]
+        val_y = np.eye(10)[usps_data.val_y.reshape(-1)]
+
+        random_idx = np.random.permutation(len(train_x))[:1800]
+        random_idx.sort()
+        train_x = train_x[random_idx]
+        train_y = train_y[random_idx]
+
+        self.train = Data(train_x, train_y)
+        self.test = Data(test_x, test_y)
+        self.val = Data(val_x, val_y)
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = val_y.shape[0]
+
+
 class mnist(object):
     def __init__(self, FLAGS):
         mnist_data = load_mnist(val=FLAGS.val, zero_centre=FLAGS.zc)
@@ -104,6 +135,36 @@ class mnist(object):
         train_y = np.eye(10)[mnist_data.train_y.reshape(-1)]
         test_y = np.eye(10)[mnist_data.test_y.reshape(-1)]
         val_y = np.eye(10)[mnist_data.val_y.reshape(-1)]
+
+        self.train = Data(train_x, train_y)
+        self.test = Data(test_x, test_y)
+        self.val = Data(val_x, val_y)
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = val_y.shape[0]
+
+
+class mnist2000(object):
+    def __init__(self, FLAGS):
+        mnist_data = load_mnist(val=FLAGS.val, zero_centre=FLAGS.zc)
+
+        train_x = mnist_data.train_X
+        test_x = mnist_data.test_X
+        val_x = mnist_data.val_X
+
+        train_x = np.transpose(train_x, (0, 2, 3, 1)).astype(np.float32)
+        test_x = np.transpose(test_x, (0, 2, 3, 1)).astype(np.float32)
+        val_x = np.transpose(val_x, (0, 2, 3, 1)).astype(np.float32)
+
+        train_y = np.eye(10)[mnist_data.train_y.reshape(-1)]
+        test_y = np.eye(10)[mnist_data.test_y.reshape(-1)]
+        val_y = np.eye(10)[mnist_data.val_y.reshape(-1)]
+
+        random_idx = np.random.permutation(len(train_x))[:2000]
+        random_idx.sort()
+        train_x = train_x[random_idx]
+        train_y = train_y[random_idx]
 
         self.train = Data(train_x, train_y)
         self.test = Data(test_x, test_y)
@@ -419,6 +480,90 @@ class p(object):
         self.val_num = 0
 
 
+class roomA(object):
+    def __init__(self, FLAGS):
+        x = np.empty([0, 400, 90])
+        y = np.empty([0, 8])
+        for i in ["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]:
+            with open(os.path.join(FLAGS.datadir, 'wifi/processed/roomA/x_2000_60_' + str(i) + '.pkl'), 'rb') as f:
+                x_tmp = pickle.load(f)
+            with open(os.path.join(FLAGS.datadir, 'wifi/processed/roomA/y_2000_60_' + str(i) + '.pkl'), 'rb') as f:
+                y_tmp = pickle.load(f)
+            x = np.concatenate((x, x_tmp), axis=0)
+            y = np.concatenate((y, y_tmp), axis=0)
+
+        # Delete no activity data
+        x = x[y[:, 0] == 0]
+        y = y[y[:, 0] == 0]
+        y = np.delete(y, 0, axis=1)
+
+        # Data transpose
+        x = np.stack(np.split(x, 3, axis=2))
+        x = np.transpose(x, (1, 3, 2, 0)).astype(np.float32)
+
+        # Permute the dataset
+        permute_idx = np.random.permutation(len(x))
+        x = x[permute_idx]
+        y = y[permute_idx]
+
+        train_x = x
+        test_x = x
+        train_y = y
+        test_y = y
+
+        self.train = Data(train_x, train_y)
+        self.test = Data(test_x, test_y)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+        print(f"Wifi dataset roomA class is initialized. x.shape: {x.shape}, y.shape: {y.shape}")
+
+
+class roomB(object):
+    def __init__(self, FLAGS):
+        x = np.empty([0, 400, 90])
+        y = np.empty([0, 8])
+        for i in ["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]:
+            with open(os.path.join(FLAGS.datadir, 'wifi/processed/roomB/x_2000_60_' + str(i) + '.pkl'), 'rb') as f:
+                x_tmp = pickle.load(f)
+            with open(os.path.join(FLAGS.datadir, 'wifi/processed/roomB/y_2000_60_' + str(i) + '.pkl'), 'rb') as f:
+                y_tmp = pickle.load(f)
+            x = np.concatenate((x, x_tmp), axis=0)
+            y = np.concatenate((y, y_tmp), axis=0)
+
+        # Delete no activity data
+        x = x[y[:, 0] == 0]
+        y = y[y[:, 0] == 0]
+        y = np.delete(y, 0, axis=1)
+
+        # Data transpose
+        x = np.stack(np.split(x, 3, axis=2))
+        x = np.transpose(x, (1, 3, 2, 0)).astype(np.float32)
+
+        # Permute the dataset
+        permute_idx = np.random.permutation(len(x))
+        x = x[permute_idx]
+        y = y[permute_idx]
+
+        train_x = x[len(x) // 10:]
+        test_x = x[:len(x) // 10]
+        train_y = y[len(y) // 10:]
+        test_y = y[:len(y) // 10]
+
+        self.train = Data(train_x, train_y)
+        self.test = Data(test_x, test_y)
+        self.val = None
+
+        self.train_num = train_y.shape[0]
+        self.test_num = test_y.shape[0]
+        self.val_num = 0
+
+        print(f"Wifi dataset roomB class is initialized. x.shape: {x.shape}, y.shape: {y.shape}")
+
+
 def read_lines(fname):
     data = open(fname).readlines()
     fnames = []
@@ -477,7 +622,9 @@ def get_attr(source, target=None):
     # Processed_attr: [processed size, processed channels, number of classes]
     processed_attr = {
         'usps'     : [28, 1, 10],
+        'usps1800' : [28, 1, 10],
         'mnist'    : [28, 1, 10],
+        'mnist2000': [28, 1, 10],
         'mnistm'   : [28, 3, 10],
         'svhn'     : [32, 3, 10],
         'syndigits': [32, 3, 10],
@@ -490,23 +637,29 @@ def get_attr(source, target=None):
         'dslr'     : [256, 3, 31],
         'c'        : [256, 3, 12],
         'i'        : [256, 3, 12],
-        'p'        : [256, 3, 12]
+        'p'        : [256, 3, 12],
+        'roomA'    : [30, 3, 7],
+        'roomB'    : [30, 3, 7]
     }
 
     # Desired_attr: [desired size, desired channels, source normalize, target normalize]
     experiment_attr = {
-        'usps_mnist'    : [28, 1],
-        'mnist_usps'    : [28, 1],
-        'mnist_mnistm'  : [28, 3],
-        'mnistm_mnist'  : [28, 3],
-        'svhn_mnist'    : [32, 1],
-        'mnist_svhn'    : [32, 1],
-        'svhn_syndigits': [32, 3],
-        'syndigits_svhn': [32, 3],
-        'cifar_stl'     : [32, 3],
-        'stl_cifar'     : [32, 3],
-        'synsigns_gtsrb': [40, 3],
-        'gtsrb_synsigns': [40, 3]
+        'usps_mnist'        : [28, 1],
+        'mnist_usps'        : [28, 1],
+        'usps1800_mnist2000': [28, 1],
+        'mnist2000_usps1800': [28, 1],
+        'mnist_mnistm'      : [28, 3],
+        'mnistm_mnist'      : [28, 3],
+        'svhn_mnist'        : [32, 1],
+        'mnist_svhn'        : [32, 1],
+        'svhn_syndigits'    : [32, 3],
+        'syndigits_svhn'    : [32, 3],
+        'cifar_stl'         : [32, 3],
+        'stl_cifar'         : [32, 3],
+        'synsigns_gtsrb'    : [40, 3],
+        'gtsrb_synsigns'    : [40, 3],
+        'roomA_roomB'       : [30, 3],
+        'roomB_roomA'       : [30, 3]
     }
 
     if target == None:

@@ -43,11 +43,11 @@ def update_dict(M, feed_dict, FLAGS, src=None, trg=None, Ls=None, Lt=None):
 
 
 def stopping_criteria(past_acc, current_acc):
-    if current_acc < 0.7:
-        print(f"Trg_test_ema, {round(current_acc, 5)} is less than 0.7")
+    if current_acc < 0.6:
+        print(f"Trg_test_ema, {round(current_acc, 5)} is less than 0.6")
     if current_acc < past_acc:
         print(f"Trg_test_ema, {round(current_acc, 5)} is less than last save point trg_test_ema, {round(past_acc, 5)}")
-    return (current_acc < 0.7) | (current_acc < past_acc)
+    return (current_acc < 0.6) | (current_acc < past_acc)
 
 
 def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
@@ -154,6 +154,9 @@ def train(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
 
             print_list += ['epoch', epoch]
             print(print_list)
+
+            sigma = M.sess.run(M.sigma)
+            print(f"Sigma value: {sigma}")
 
             if max_trg_train_ema_1k < trg_train_ema_1k:
                 max_trg_train_ema_1k = trg_train_ema_1k

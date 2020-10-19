@@ -55,7 +55,8 @@ def lgan(FLAGS, inference=False):
     # Return the model when inferencing LGAN model
     if inference:
         # Compute G(x, z) and G(x, 0)
-        T.fake_x = nn.generator(real_x, T.z, phase=False)
+        # T.fake_x = nn.generator(real_x, T.z, phase=False)
+        T.fake_x = nn.generator(real_x, T.z, phase=True)
         print("============================LGAN model initialization ended.============================")
         return T
     else:

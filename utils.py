@@ -15,8 +15,6 @@ import tensorbayes as tb
 import tensorflow as tf
 from tensorflow.contrib.framework import add_arg_scope
 
-from data.dataset import get_attr
-
 
 def adaptation_factor(x, ramp_gamma=10):
     den = 1.0 + math.exp(-ramp_gamma * x)
@@ -30,13 +28,21 @@ def get_decay_var_op(name):
     return var, op
 
 
+# def get_grad_weight(y, flen, grad_val):
+#     # if tf.is_nan(y):
+#     #     print('nan detected in target y hat')
+#     # class_num = y.shape[1]
+#     ent = tf.reduce_sum(-y * tf.log(y + 1e-8), 1)
+#     # weight = ent * tf.exp(-ent + 1)
+#     weight = grad_val * ent * tf.exp(-grad_val * ent + 1)
+#     weight = tf.tile(tf.expand_dims(weight, 1), [1, flen])
+#     return weight
 def get_grad_weight(y, flen, grad_val):
-    # if tf.is_nan(y):
-    #     print('nan detected in target y hat')
-    # class_num = y.shape[1]
-    ent = tf.reduce_sum(-y * tf.log(y + 1e-8), 1)
+    # ent = tf.reduce_sum(-y * tf.log(y + 1e-8), 1)
     # weight = ent * tf.exp(-ent + 1)
-    weight = grad_val * ent * tf.exp(-grad_val * ent + 1)
+    # weight = grad_val * ent * tf.exp(-grad_val * ent + 1)
+    y_max = tf.reduce_max(y, axis=1)
+    weight = 1 / (1 + tf.exp(grad_val * (-y_max + 0.5)))
     weight = tf.tile(tf.expand_dims(weight, 1), [1, flen])
     return weight
 
@@ -103,7 +109,11 @@ def get_lgan_attr(data):
     lgan_attr = {
         'usps'     : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0},
+        'usps1800' : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
         'mnist'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'mnist2000': {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0},
         'mnistm'   : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0},
@@ -138,6 +148,10 @@ def get_lgan_attr(data):
         'i'        : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0},
         'p'        : {'lgan_nn': 'lgan_small', 'ngf': 32, 'ndf': 32, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'roomA'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
+                      'var'    : 3.0},
+        'roomB'    : {'lgan_nn': 'lgan_small', 'ngf': 16, 'ndf': 16, 'nz': 32, 'jcb': 8, 'lw': 20.0, 'ow': 0.01,
                       'var'    : 3.0}
     }
 

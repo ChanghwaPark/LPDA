@@ -5,9 +5,22 @@ from tensorflow.contrib.framework import add_arg_scope
 eps = 1e-8
 
 
-def lp_loss(y, yhat, scope=None):
-    with tf.name_scope(scope, 'lgan_loss'):
-        loss = tf.reduce_mean(tf.reduce_sum(tf.abs(y - yhat), 1))
+# def lp_loss(y, yhat, scope=None):
+#     with tf.name_scope(scope, 'lgan_loss'):
+#         loss = tf.reduce_mean(tf.reduce_sum(tf.abs(y - yhat), 1))
+#     return loss
+
+
+def lp_loss(y, yhat, loss_function, scope=None):
+    with tf.name_scope(scope, 'lp_loss'):
+        if loss_function == 'l1':
+            loss = tf.reduce_mean(tf.reduce_sum(tf.abs(y - yhat), 1))
+        elif loss_function == 'l2':
+            loss = tf.reduce_mean(tf.norm((y - yhat), axis=1))
+        elif loss_function == 'ce':
+            loss = tf.reduce_mean(tf.keras.losses.categorical_crossentropy(y, yhat, from_logits=False))
+        else:
+            raise ValueError(f"{loss_function}")
     return loss
 
 
@@ -17,6 +30,8 @@ def lgan_loss(real_x, fake_x, classifier, scope=None):
         real_p = classifier(real_x, phase=True)
         fake_p = classifier(fake_x, phase=True)
         loss = tf.reduce_mean(softmax_xent_two(labels=tf.stop_gradient(real_p), logits=fake_p))
+        # loss = tf.reduce_mean(tf.norm(tf.nn.softmax(tf.stop_gradient(real_p)) - tf.nn.softmax(fake_p)))
+        # TODO: Should roll back to the previous softmax
     return loss
 
 
@@ -106,3 +121,40 @@ def label_propagate(src_e, trg_e, src_y, bs, sigma, lpc, iter, scope=None):
             src_yhat = lp_iter([w_st, w_ss], trg_yhat, src_yhat)
 
     return trg_yhat, src_yhat
+
+
+@add_arg_scope
+def normalize_perturbation(d, scope=None):
+    with tf.name_scope(scope, 'norm_pert'):
+        output = tf.nn.l2_normalize(d, axis=list(range(1, len(d.shape))))
+    return output
+
+
+@add_arg_scope
+def perturb_image(x, p, classifier, pert='vat', scope=None):
+    with tf.name_scope(scope, 'perturb_image'):
+        radius = 3.5
+        eps = 1e-6 * normalize_perturbation(tf.random_normal(shape=tf.shape(x)))
+
+        # Predict on randomly perturbed image
+        eps_p = classifier(x + eps, phase=True, reuse=True)
+        loss = softmax_xent_two(labels=p, logits=eps_p)
+
+        # Based on perturbed image, get direction of greatest error
+        eps_adv = tf.gradients(loss, [eps], aggregation_method=2)[0]
+
+        # Use that direction as adversarial perturbation
+        eps_adv = normalize_perturbation(eps_adv)
+        x_adv = tf.stop_gradient(x + radius * eps_adv)
+
+    return x_adv
+
+
+@add_arg_scope
+def vat_loss(x, p, classifier, scope=None):
+    with tf.name_scope(scope, 'vat_loss'):
+        x_adv = perturb_image(x, p, classifier)
+        p_adv = classifier(x_adv, phase=True, reuse=True)
+        loss = tf.reduce_mean(softmax_xent_two(labels=tf.stop_gradient(p), logits=p_adv))
+
+    return loss

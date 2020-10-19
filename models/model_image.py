@@ -84,9 +84,9 @@ def lpda_image(FLAGS):
     # src_p = nn.classifier(src_e, phase=True, enc_phase=False, trim=FLAGS.trim)
     # trg_p = nn.classifier(trg_e, phase=True, enc_phase=False, trim=FLAGS.trim, internal_update=True)
 
-    # flen = nc
+    flen = nc
     # flen = 256
-    flen = 12
+    # flen = 12
 
     # Source true label cross entropy minimization
     loss_src_class = tf.reduce_mean(softmax_xent(labels=T.src_y, logits=src_p))
@@ -114,7 +114,8 @@ def lpda_image(FLAGS):
         trg_yhat, src_yhat = label_propagate(src_e, trg_e, T.src_y, FLAGS.bs, sigma, FLAGS.lpc, FLAGS.lp_iter)
         trg_test_yhat, _ = label_propagate(src_test_e, trg_test_e, T.src_test_y, FLAGS.bs, sigma, FLAGS.lpc,
                                            FLAGS.lp_iter)
-        loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
+        # loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat)
+        loss_lp = T.adpt * lw * lp_loss(T.src_y, src_yhat, FLAGS.lp_loss)
     else:
         loss_lp = constant(0)
 
@@ -179,10 +180,10 @@ def lpda_image(FLAGS):
                  # lw * loss_lp +
                  wd * g_decay +
                  xw * loss_trg_cent +
-                 # sw * loss_src_reg +
-                 # tw * loss_trg_reg
-                 T.adpt * sw * loss_src_reg +
-                 T.adpt * tw * loss_trg_reg
+                 sw * loss_src_reg +
+                 tw * loss_trg_reg
+                 # T.adpt * sw * loss_src_reg +
+                 # T.adpt * tw * loss_trg_reg
                  )
 
     # var_main = tf.get_collection('trainable_variables', 'class')

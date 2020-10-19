@@ -8,6 +8,7 @@ import os
 import time
 from collections import deque
 from statistics import mean
+import csv
 
 import numpy as np
 import tensorbayes as tb
@@ -101,6 +102,7 @@ def train_image(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     temp_time = time.time()
 
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    update_ops = [v for v in update_ops if 'lgan/' not in v.name]
 
     for i in range(n_epoch * iterep):
         # Train the discriminator
@@ -218,3 +220,13 @@ def train_image(M, FLAGS, Ls=None, Lt=None, saver=None, model_name=None):
     print("============================LPDA training ended.============================")
     end_time = datetime.datetime.now(timezone('Asia/Seoul')).strftime('%Y-%m-%d %I:%M:%S %p')
     print(colored(end_time, "blue"))
+
+    # with open("result.txt", "a") as result_file:
+    #     result_file.write(model_name + "\n")
+    #     result_file.write(str(max_trg_test_ema) + "\n")
+    #     result_file.close()
+
+    with open('result.csv', 'a') as f:
+        csv_writer = csv.writer(f)
+        write_list = [model_name, max_trg_test_ema]
+        csv_writer.writerow(write_list)

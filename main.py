@@ -52,6 +52,11 @@ flags.DEFINE_float('tw', 0.1, 'LGAN regularization on target domain weight')
 flags.DEFINE_integer('pn', 0, 'Regularizer perturbation normalization flag; 0: do not normalize z, 1: normalize z')
 flags.DEFINE_float('sv', 0.1, 'Source mixing policy std for gaussian; alpha for beta function; std for LGAN loss')
 flags.DEFINE_float('tv', 0.1, 'Target mixing policy std for gaussian; alpha for beta function; std for LGAN loss')
+flags.DEFINE_float('vsw', 0, 'Source VAT loss weight')
+flags.DEFINE_float('vtw', 0, 'Target VAT loss weight')
+flags.DEFINE_string('lp_loss', 'l1', 'Cycle loss term loss function; l1, l2, ce')
+flags.DEFINE_float('sigma', -1, 'Scale parameter, sigma value. -1 means adaptive learning')
+flags.DEFINE_float('sigma_init', 1.0, 'Initial value of the scale parameter.')
 
 ## Local GAN flags
 flags.DEFINE_string('data', ' ', 'LGAN domain name')
@@ -111,7 +116,7 @@ def main(_):
         f"var_{FLAGS.sv}_{FLAGS.tv}"
     ]
     model_name = '_'.join(setup_list)
-    print(colored(f"Model name: {model_name}", 'blue'))
+    print(colored(f"Model name: {model_name}", 'green'))
 
     if FLAGS.src in ['amazon', 'dslr', 'webcam', 'c', 'i', 'p']:
         exp_sz, exp_ch, _ = get_attr_image(FLAGS.nn, FLAGS.src)
@@ -131,7 +136,7 @@ def main(_):
         var_lgan = tf.get_collection('trainable_variables', FLAGS.src + '/lgan/gen')
         path = tf.train.latest_checkpoint(os.path.join(FLAGS.ckptdir, lgan_source))
         tf.train.Saver(var_lgan).restore(Ls.sess, path)
-        print(colored(f"Source LGAN model is restored from {path}", 'blue'))
+        print(colored(f"Source LGAN model is restored from {path}", 'green'))
     else:
         Ls = None
 
@@ -143,7 +148,7 @@ def main(_):
         var_lgan = tf.get_collection('trainable_variables', FLAGS.trg + '/lgan/gen')
         path = tf.train.latest_checkpoint(os.path.join(FLAGS.ckptdir, lgan_target))
         tf.train.Saver(var_lgan).restore(Lt.sess, path)
-        print(colored(f"Target LGAN model is restored from {path}", 'blue'))
+        print(colored(f"Target LGAN model is restored from {path}", 'green'))
     else:
         Lt = None
 
@@ -163,7 +168,7 @@ def main(_):
             var_resnet = [v for v in var_resnet if 'dense' not in v.name]
             path = tf.train.latest_checkpoint(os.path.join(FLAGS.datadir, 'resnet_imagenet_v2_fp32_20181001'))
             tf.train.Saver(var_resnet).restore(M.sess, path)
-            print(colored(f"Resnet model is restored from {path}", 'blue'))
+            print(colored(f"Resnet model is restored from {path}", 'green'))
         train_image(M, FLAGS, Ls, Lt, saver=saver, model_name=model_name)
     else:
         train(M, FLAGS, Ls, Lt, saver=saver, model_name=model_name)

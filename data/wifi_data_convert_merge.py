@@ -5,15 +5,17 @@ Modified by Changhwa Park.
 """
 
 import csv
+import pickle
 import glob
 import os
 
 import numpy as np
 
-window_size = 1000
+# window_size = 1000
+window_size = 2000
 threshold = 60
 slide_size = 200  # less than window_size!!!
-
+dataset_path = '/home/omega/datasets/wifi'
 
 def dataimport(path1, path2):
     xx = np.empty([0, window_size, 90], float)
@@ -36,7 +38,8 @@ def dataimport(path1, path2):
             k += slide_size
 
         xx = np.concatenate((xx, x2), axis=0)
-    xx = xx.reshape(len(xx), -1)
+    # xx = xx.reshape(len(xx), -1)
+    xx = xx[:, ::5, :]
 
     ###Annotation data###
     # data import from csv
@@ -92,7 +95,8 @@ def dataimport(path1, path2):
             elif standup > window_size * threshold / 100:
                 y[k // slide_size, :] = np.array([0, 0, 0, 0, 0, 0, 0, 1])
             else:
-                y[k // slide_size, :] = np.array([2, 0, 0, 0, 0, 0, 0, 0])
+                # y[k // slide_size, :] = np.array([2, 0, 0, 0, 0, 0, 0, 0])
+                y[k // slide_size, :] = np.array([1, 0, 0, 0, 0, 0, 0, 0])
             k += slide_size
 
         yy = np.concatenate((yy, y), axis=0)
@@ -101,35 +105,57 @@ def dataimport(path1, path2):
 
 
 #### Main ####
-if not os.path.exists("input_files/"):
-    os.makedirs("input_files/")
+# if not os.path.exists("input_files/"):
+#     os.makedirs("input_files/")
+if not os.path.exists(os.path.join(dataset_path, 'processed')):
+    os.makedirs(os.path.join(dataset_path, 'processed'))
+if not os.path.exists(os.path.join(dataset_path, 'processed', 'roomA')):
+    os.makedirs(os.path.join(dataset_path, 'processed', 'roomA'))
+if not os.path.exists(os.path.join(dataset_path, 'processed', 'roomB')):
+    os.makedirs(os.path.join(dataset_path, 'processed', 'roomB'))
 
 for i, label in enumerate(["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]):
-    filepath1 = "./Dataset/roomA/input_*" + str(label) + "*.csv"
-    filepath2 = "./Dataset/roomA/annotation_*" + str(label) + "*.csv"
-    outputfilename1 = "./input_files/roomA/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
-    outputfilename2 = "./input_files/roomA/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    # filepath1 = "./Dataset/roomA/input_*" + str(label) + "*.csv"
+    # filepath2 = "./Dataset/roomA/annotation_*" + str(label) + "*.csv"
+    # outputfilename1 = "./input_files/roomA/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    # outputfilename2 = "./input_files/roomA/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    filepath1 = os.path.join(dataset_path, "raw/roomA/input_*") + str(label) + "*.csv"
+    filepath2 = os.path.join(dataset_path, "raw/roomA/annotation_*") + str(label) + "*.csv"
+    outputfilename1 = os.path.join(dataset_path, "processed/roomA/x_") + str(window_size) + "_" \
+                      + str(threshold) + "_" + label + ".pkl"
+    outputfilename2 = os.path.join(dataset_path, "processed/roomA/y_") + str(window_size) + "_" \
+                      + str(threshold) + "_" + label + ".pkl"
 
     x, y = dataimport(filepath1, filepath2)
-    with open(outputfilename1, "w") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerows(x)
-    with open(outputfilename2, "w") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerows(y)
+    with open(outputfilename1, "wb") as f:
+        # writer = csv.writer(f, lineterminator="\n")
+        # writer.writerows(x)
+        pickle.dump(x, f)
+    with open(outputfilename2, "wb") as f:
+        # writer = csv.writer(f, lineterminator="\n")
+        # writer.writerows(y)
+        pickle.dump(y, f)
     print(label + "finish!")
 
 for i, label in enumerate(["bed", "fall", "pickup", "run", "sitdown", "standup", "walk"]):
-    filepath1 = "./Dataset/roomB/input_*" + str(label) + "*.csv"
-    filepath2 = "./Dataset/roomB/annotation_*" + str(label) + "*.csv"
-    outputfilename1 = "./input_files/roomB/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
-    outputfilename2 = "./input_files/roomB/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    # filepath1 = "./Dataset/roomB/input_*" + str(label) + "*.csv"
+    # filepath2 = "./Dataset/roomB/annotation_*" + str(label) + "*.csv"
+    # outputfilename1 = "./input_files/roomB/xx_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    # outputfilename2 = "./input_files/roomB/yy_" + str(window_size) + "_" + str(threshold) + "_" + label + ".csv"
+    filepath1 = os.path.join(dataset_path, "raw/roomB/input_*") + str(label) + "*.csv"
+    filepath2 = os.path.join(dataset_path, "raw/roomB/annotation_*") + str(label) + "*.csv"
+    outputfilename1 = os.path.join(dataset_path, "processed/roomB/x_") + str(window_size) + "_" \
+                      + str(threshold) + "_" + label + ".pkl"
+    outputfilename2 = os.path.join(dataset_path, "processed/roomB/y_") + str(window_size) + "_" \
+                      + str(threshold) + "_" + label + ".pkl"
 
     x, y = dataimport(filepath1, filepath2)
-    with open(outputfilename1, "w") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerows(x)
-    with open(outputfilename2, "w") as f:
-        writer = csv.writer(f, lineterminator="\n")
-        writer.writerows(y)
+    with open(outputfilename1, "wb") as f:
+        # writer = csv.writer(f, lineterminator="\n")
+        # writer.writerows(x)
+        pickle.dump(x, f)
+    with open(outputfilename2, "wb") as f:
+        # writer = csv.writer(f, lineterminator="\n")
+        # writer.writerows(y)
+        pickle.dump(y, f)
     print(label + "finish!")
